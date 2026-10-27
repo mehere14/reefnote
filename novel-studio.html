@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Novel Studio prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --page:#F3F1EA; --paper:#FFFFFF; --ink:#24211C; --dim:#77716A; --line:#E4E0D6; --soft:#F8F7F2;
+  --rule-red:#C9503F; --rule-blue:#DCE6F2; --accent:#2D4F86; --accent-ink:#FFFFFF;
+  --pending:#E7A93B; --pending-bg:#FDF4E3; --ok:#3C7A55;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif; --ui:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#1B1A17;--paper:#26241F;--ink:#ECE8DF;--dim:#A39D92;--line:#3A372F;--soft:#2D2A24;--rule-blue:#34404F;--accent:#8FB0E6;--accent-ink:#1B1A17;--pending-bg:#3A2F1B}}
+:root[data-theme="dark"]{--page:#1B1A17;--paper:#26241F;--ink:#ECE8DF;--dim:#A39D92;--line:#3A372F;--soft:#2D2A24;--rule-blue:#34404F;--accent:#8FB0E6;--accent-ink:#1B1A17;--pending-bg:#3A2F1B}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--page);color:var(--ink);font:14px/1.5 var(--ui);overflow:hidden}
+button{font:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-columns:280px 1fr 330px;height:100%}
+
+/* RAIL: a table of contents */
+.rail{background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.book{padding:28px 26px 18px;border-bottom:1px solid var(--line);margin:0 0 10px}
+.book h1{font:italic 500 30px/1.05 var(--serif);margin:0}
+.book p{margin:8px 0 0;color:var(--dim);font:italic 14px var(--serif)}
+.path{flex:1;overflow:auto;padding:4px 14px 14px}
+.toc-h{font:600 12.5px var(--ui);color:var(--dim);padding:6px 12px 8px}
+.step{display:flex;align-items:baseline;gap:10px;width:100%;border:0;background:none;text-align:left;padding:9px 12px;border-radius:8px}
+.step:hover{background:var(--soft)}
+.step.on{background:var(--soft)}
+.step .pin{font:500 15px var(--serif);color:var(--dim);width:16px;flex:none}
+.step .txt{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px}
+.step .nm{font:500 17px/1.25 var(--serif);white-space:nowrap}
+.step.on .nm{color:var(--accent);font-style:italic}
+.step .ds{display:none}
+.step .lead{flex:1;border-bottom:1.5px dotted var(--line);transform:translateY(-4px);min-width:12px}
+.step .pg{font:500 14px var(--serif);color:var(--dim)}
+.step .bdg{margin-left:4px}
+.flags{margin:6px 14px 16px;border:1px solid var(--line);border-radius:10px;padding:11px 13px;display:flex;align-items:center;gap:10px;background:var(--soft);width:calc(100% - 28px);text-align:left}
+.flags:hover{border-color:var(--accent)}
+.flags b{display:block;font:500 15px var(--serif)}
+.flags span{color:var(--dim);font-size:12px}
+.count{display:inline-block;min-width:20px;padding:1px 6px;border-radius:10px;background:var(--pending);color:#2A1F08;font-size:11px;font-weight:700;text-align:center;font-family:var(--ui)}
+
+/* MAIN */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.head{padding:22px 34px 16px}
+.crumbs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);flex-wrap:wrap}
+.crumbs button{border:0;background:none;padding:2px 4px;border-radius:6px;color:var(--accent);font-weight:600}
+.crumbs button:hover{text-decoration:underline}
+.head h2{font:500 36px/1.1 var(--serif);margin:6px 0 4px}
+.head .sub{color:var(--dim);font:italic 16px/1.5 var(--serif);max-width:66ch}
+.scroll{flex:1;overflow:auto;padding:6px 34px 30px}
+
+/* INDEX CARDS */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}
+.card{position:relative;text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:3px;padding:12px 16px 12px;display:flex;flex-direction:column;min-height:168px;box-shadow:0 1px 0 var(--line),0 6px 14px -10px rgba(60,45,20,.25)}
+.card .kind{order:-1;display:flex;justify-content:space-between;font:italic 13px var(--serif);color:var(--dim);padding-bottom:6px}
+.card .ttl{font:600 19px/1.25 var(--serif);padding:6px 0 4px;border-top:1.5px solid var(--rule-red)}
+.card .snip{font:14px/24px var(--serif);color:var(--dim);background:repeating-linear-gradient(to bottom,transparent 0 23px,var(--rule-blue) 23px 24px);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card .meta{margin-top:auto;padding-top:8px;display:flex;gap:12px;align-items:center;font-size:12px;color:var(--dim)}
+.card .meta .count{margin-left:auto}
+.card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.card.new{border:1.5px dashed var(--line);background:none;box-shadow:none;align-items:center;justify-content:center;color:var(--dim);font:italic 17px var(--serif)}
+.groupname{font:italic 500 19px var(--serif);color:var(--ink);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.groupname:first-child{margin-top:0}
+
+/* card detail */
+.kindpill{font:italic 15px var(--serif);color:var(--dim)}
+.kindpill i{display:none}
+.titlein{font:500 36px/1.12 var(--serif);border:0;background:none;color:var(--ink);width:100%;padding:0;margin:2px 0 0}
+.block{background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:18px 22px;margin-bottom:18px;box-shadow:0 6px 14px -12px rgba(60,45,20,.25)}
+.block h3{font:italic 500 17px var(--serif);margin:0 0 10px;padding-bottom:6px;border-bottom:1.5px solid var(--rule-red)}
+.ta{width:100%;border:0;background:none;color:var(--ink);font:16px/1.7 var(--serif);resize:vertical;padding:0;min-height:110px}
+.ta.prose{min-height:280px;font-size:17.5px;line-height:1.85}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.chip{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:500}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.kids{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+
+/* dock */
+.dock{border-top:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column;max-height:46%}
+.thread{overflow:auto;padding:16px 34px 4px}
+.thread:empty{display:none}
+.msg{max-width:680px;margin:0 0 12px}
+.msg.me{margin-left:auto;width:fit-content;max-width:460px;background:var(--accent);color:var(--accent-ink);padding:9px 14px;border-radius:14px 14px 3px 14px}
+.msg.ai{font:16px/1.65 var(--serif)}
+.msg.ai h4{font:italic 600 15px var(--serif);color:var(--dim);margin:8px 0 2px}
+.msg.ai p{margin:0 0 8px}
+.pass{font:12px var(--ui);color:var(--dim)}
+.pass b{color:#A86E10}
+.composer{display:flex;gap:10px;padding:12px 34px 14px;align-items:flex-end}
+.composer textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font:16px var(--serif);background:var(--soft);color:var(--ink);height:46px}
+.btn{border:0;background:var(--accent);color:var(--accent-ink);padding:10px 16px;border-radius:8px;font-weight:600}
+.btn.sm{padding:5px 11px;font-size:12px;border-radius:7px}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line)}
+.btn.ok{background:var(--ok);color:#fff}
+.hint{display:flex;gap:6px;flex-wrap:wrap;padding:0 34px}
+
+/* side */
+.side{background:var(--paper);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.side .scope{padding:20px 18px 0;font-size:12.5px;color:var(--dim)}
+.side .scope b{display:block;color:var(--ink);font:500 19px/1.25 var(--serif)}
+.dtabs{display:flex;border-bottom:1px solid var(--line);padding:0 8px;margin-top:12px}
+.dtabs button{flex:1;border:0;background:none;padding:10px 4px;color:var(--dim);font-weight:600;border-bottom:2px solid transparent}
+.dtabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.dbody{flex:1;overflow:auto;padding:16px}
+.sug{background:var(--pending-bg);border:1px solid #F0D9AE;border-radius:4px;padding:11px 13px;margin-bottom:10px}
+.sug .on{font:italic 13px var(--serif);color:var(--dim)}
+.sug .what{font:600 16px var(--serif)}
+.sug .why{color:var(--dim);font-size:12.5px;margin:3px 0 8px}
+.sug .preview{font:14px/1.55 var(--serif);background:var(--paper);border-radius:3px;padding:7px 9px;margin:6px 0;max-height:120px;overflow:auto}
+.sug .acts{display:flex;gap:6px}
+.lnk{display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;border:0;background:none;width:100%;text-align:left;font:15px var(--serif)}
+.lnk:hover{background:var(--soft)}
+.lnk i{display:none}
+.lnk small{display:block;color:var(--dim);font:italic 13px var(--serif)}
+.ver{padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.ver span{color:var(--dim);font-size:12px;display:block}
+.note{font:italic 14px var(--serif);color:var(--dim);margin:4px 0 12px}
+.fld{margin-bottom:14px}.fld:last-child{margin-bottom:0}
+.fld label{display:block;font-size:12px;font-weight:600;color:var(--dim);margin-bottom:2px}
+.ta.sm{min-height:54px}
+.row{display:flex;align-items:stretch;gap:8px;margin-bottom:10px}
+.row .card{flex:1;min-height:0;padding:10px 14px}
+.row .card .ttl{font-size:17px}
+.row .card .snip{-webkit-line-clamp:2}
+.mv{display:flex;flex-direction:column;gap:4px}
+.mv button{border:1px solid var(--line);background:var(--soft);border-radius:6px;width:28px;flex:1;font-size:12px;color:var(--dim)}
+.mv button:disabled{opacity:.35;cursor:default}
+.who{display:flex;gap:6px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font:15px var(--serif);background:var(--soft)}
+.tag i{display:none}
+.tag small{color:var(--dim);font-style:italic;font-size:13px}
+.thr{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font:15px var(--serif)}
+.thr:last-child{border-bottom:0}
+.thr i{display:none}
+.thr .lab{font:600 11.5px var(--ui);padding:1px 8px;border-radius:999px;background:var(--soft)}
+.thr .lab.opens{color:#2D6FA8}.thr .lab.advances{color:#6B4FBF}.thr .lab.resolves{color:var(--ok)}.thr .lab.explores{color:#A86E10}
+.thr button{border:0;background:none;padding:0;font:500 15px var(--serif);text-align:left}
+.thr button:hover{color:var(--accent)}
+.thr small{color:var(--dim);margin-left:auto;text-align:right;font-style:italic}
+.bt{display:flex;gap:6px;flex-wrap:wrap}
+.bt button{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:4px 11px;font-size:12.5px}
+.bt button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.reading{max-width:64ch;margin:0 auto;font:18px/1.85 var(--serif);background:var(--paper);border:1px solid var(--line);padding:40px 48px;box-shadow:0 10px 24px -18px rgba(60,45,20,.35)}
+.reading h3{font:italic 500 15px var(--serif);color:var(--dim);margin:26px 0 8px;display:flex;gap:10px;align-items:baseline;justify-content:center}
+.reading h3:first-child{margin-top:0}
+.reading h3 button{border:0;background:none;color:var(--accent);font:600 12px var(--ui);padding:0}
+.reading p{margin:0 0 14px;text-indent:1.5em}
+.reading .gap{color:var(--dim);font-style:italic;text-align:center;text-indent:0}
+.ver{display:flex;align-items:center;gap:8px}
+.ver div{flex:1}
+
+.book{position:relative}
+.switch{display:flex;align-items:center;gap:8px;border:0;background:none;padding:0;text-align:left;width:100%}
+.switch h1{flex:1}
+.switch .caret{font-size:13px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+.menu{position:absolute;left:18px;right:18px;top:78px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 14px 30px -14px rgba(40,30,10,.35);padding:6px;z-index:5}
+.menu[hidden]{display:none}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 10px;border-radius:6px;font:16px var(--serif)}
+.menu button:hover{background:var(--soft)}
+.menu button.cur{font-style:italic;color:var(--accent)}
+.menu small{display:block;font:12px var(--ui);color:var(--dim)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+.menu .add{font:600 13px var(--ui);color:var(--accent)}
+.railfoot{display:flex;gap:8px;margin:0 14px 16px}
+.railfoot .flags{margin:0;width:auto;flex:1}
+.gear{border:1px solid var(--line);background:var(--soft);border-radius:10px;padding:0 12px;font-weight:600;font-size:13px;color:var(--dim)}
+.gear:hover{border-color:var(--accent);color:var(--accent)}
+dialog{border:1px solid var(--line);border-radius:6px;padding:0;background:var(--paper);color:var(--ink);width:min(520px,92vw);box-shadow:0 30px 60px -20px rgba(40,30,10,.45)}
+dialog::backdrop{background:rgba(36,33,28,.35)}
+.dlg{padding:24px 26px}
+.dlg h2{font:500 26px var(--serif);margin:0 0 4px;padding-bottom:8px;border-bottom:1.5px solid var(--rule-red)}
+.dlg p.lead{font:italic 15px var(--serif);color:var(--dim);margin:8px 0 16px}
+.dlg label{display:block;font-size:12px;font-weight:600;color:var(--dim);margin:14px 0 4px}
+.dlg input,.dlg select,.dlg textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:9px 11px;font:15px var(--ui);background:var(--soft);color:var(--ink)}
+.dlg textarea{font:16px/1.5 var(--serif);min-height:70px;resize:vertical}
+.dlg .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dlg .help{font-size:12px;color:var(--dim);margin-top:4px}
+.dlg .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:22px;align-items:center}
+.dlg .foot .stat{margin-right:auto;font-size:12.5px;color:var(--dim)}
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;font-weight:500}
+.toast.on{opacity:1}
+.mob{display:none}
+@media (max-width:960px){
+  .app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .rail,.main,.side{display:none;grid-row:1}
+  .app[data-mob="rail"] .rail,.app[data-mob="main"] .main,.app[data-mob="side"] .side{display:flex}
+  .mob{display:flex;grid-row:2;background:var(--paper);border-top:1px solid var(--line)}
+  .mob button{flex:1;border:0;background:none;padding:12px;color:var(--dim);font-weight:600}
+  .mob button[aria-pressed="true"]{color:var(--accent)}
+  .head,.scroll,.composer,.thread,.hint{padding-left:16px;padding-right:16px}
+  .reading{padding:24px 20px}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}.card:hover{transform:none}}
+</style>
+</head>
+<body>
+<div class="app" id="app" data-mob="main">
+  <aside class="rail" aria-label="Story path">
+    <div class="book"><button class="switch" id="switch" aria-haspopup="true" aria-expanded="false"><h1 id="booktitle">The Silence</h1><span class="caret">▾</span></button><p id="bookline">a novel in progress</p><div class="menu" id="menu" hidden></div></div>
+    <nav class="path" id="path"></nav>
+    <div class="railfoot"><button class="flags" id="flags"></button><button class="gear" id="opensettings">Settings</button></div>
+  </aside>
+  <main class="main">
+    <header class="head" id="head"></header>
+    <div class="scroll" id="scroll"></div>
+    <div class="dock">
+      <div class="thread" id="thread"></div>
+      <div class="hint" id="hint"></div>
+      <div class="composer"><textarea id="say" aria-label="Message"></textarea><button class="btn" id="send">Send</button></div>
+    </div>
+  </main>
+  <aside class="side" aria-label="Details">
+    <div class="scope" id="scope"></div>
+    <div class="dtabs" role="tablist" id="dtabs"></div>
+    <div class="dbody" id="dbody"></div>
+  </aside>
+  <nav class="mob" id="mob"><button data-v="rail">Story</button><button data-v="main" aria-pressed="true">Write</button><button data-v="side">Details</button></nav>
+</div>
+<div class="toast" id="toast"></div>
+<dialog id="dlgnew"><div class="dlg"><h2>Start a new novel</h2><p class="lead">A title and one sentence is enough. Everything else grows from here.</p>
+<label for="nt">Working title</label><input id="nt" placeholder="Untitled novel">
+<label for="np">Premise, in a sentence (optional)</label><textarea id="np" placeholder="When…"></textarea>
+<div class="foot"><button class="btn ghost" data-close="dlgnew">Cancel</button><button class="btn" id="createnovel">Create novel</button></div></div></dialog>
+<dialog id="dlgset"><div class="dlg"><h2>Settings</h2><p class="lead">Bring your own key. It's stored on your own server, never sent anywhere except the provider you pick.</p>
+<label for="prov">Provider</label><select id="prov"><option>Anthropic</option><option>OpenAI</option><option>Google Gemini</option><option>OpenRouter</option><option>Ollama (local)</option><option>OpenAI-compatible</option></select>
+<label for="key">API key</label><input id="key" type="password" placeholder="sk-…" autocomplete="off"><div class="help" id="keyhelp">Paste a key from your provider's console.</div>
+<div id="baseurlwrap" hidden><label for="baseurl">Base URL</label><input id="baseurl" placeholder="http://localhost:11434"></div>
+<div class="two"><div><label for="mw">Writing model</label><select id="mw"></select></div><div><label for="ms">Structuring model</label><select id="ms"></select></div></div>
+<div class="help">Writing model drafts prose and ideas. Structuring model turns responses into card suggestions; a smaller, cheaper model is fine.</div>
+<div class="foot"><span class="stat" id="teststat"></span><button class="btn ghost" id="testconn">Test connection</button><button class="btn" id="savesettings">Save</button></div></div></dialog>
+
+<script>
+const SECTIONS=[
+ {k:"premise",name:"Premise",ds:"The story in a sentence",types:["premise"],c:"#F2C14E",about:"What the story is about, in a sentence or two."},
+ {k:"outline",name:"Outline",ds:"Sentence → paragraph → page",types:["outline"],c:"#E8A0BF",about:"Grow the premise step by step: one paragraph, then one page."},
+ {k:"characters",name:"Characters",ds:"Cast, groups, relationships",types:["character","group","relationship"],c:"#F0965A",about:"Everyone in the story, major and minor, with full backstories. Plus the groups they belong to and how they relate."},
+ {k:"arcs",name:"Character arcs",ds:"Want, need, and change",types:["arc"],c:"#E66B7E",about:"How each key character changes from first page to last."},
+ {k:"world",name:"World & rules",ds:"Places, rules, objects, history",types:["setting","rule","object","event"],c:"#59B8E0",about:"Any kind of world: a planet, a galaxy, a 1920s city, a household. Plus the rules for travel, communication and tech, key objects, and the timeline."},
+ {k:"plots",name:"Grand plot & subplots",ds:"Plots, secrets, themes, questions",types:["plot","secret","theme","question"],c:"#B18CF0",about:"One grand plot, the subplots that keep it moving, the secrets behind them, the themes, and the open questions that keep readers turning pages."},
+ {k:"chapters",name:"Chapters",ds:"Chapters → scenes → beats",types:["chapter"],c:"#6FD3A8",about:"Each chapter's purpose, how it opens, how it closes, the threads it moves, and its scenes and beats."}
+];
+const TC={premise:"#F2C14E",outline:"#E8A0BF",character:"#F0965A",group:"#F0965A",relationship:"#F0965A",arc:"#E66B7E",setting:"#59B8E0",rule:"#59B8E0",object:"#59B8E0",event:"#59B8E0",plot:"#B18CF0",secret:"#B18CF0",theme:"#B18CF0",question:"#B18CF0",chapter:"#6FD3A8",scene:"#4FBF9A",beat:"#3FA889"};
+const GROUP={character:"Characters",group:"Groups",relationship:"Relationships",setting:"Settings",rule:"Rules",object:"Objects",event:"Timeline events",plot:"Plots",secret:"Secrets",theme:"Themes",question:"Open questions"};
+const BEATS=["setup","payoff","reveal","reversal","trap-and-escape","confrontation","decision","betrayal","loss","reunion","breather","cliffhanger"];
+const THREAD_TYPES=["plot","secret","theme","question"];
+const CAST_TYPES=["character","group","setting","object"];
+let uid=100;const nid=()=>"c"+(uid++);
+const S={
+ cards:[
+  {id:"prem",type:"premise",subtype:"one sentence",title:"The Silence",body:"When every relay in the solar system goes dark, a disgraced pilot learns his dead brother may be the one who switched them off."},
+  {id:"out1",type:"outline",subtype:"one paragraph",title:"Story in a paragraph",body:"Stephen Blacksmith hauls cargo on Halcyon Station, hiding from the Titan riots that killed his brother. When the relay network fails, Kira Vos brings him proof that Daniel survived and found something on Titan worth silencing the solar system for. With no way to warn Earth, Stephen has to fly the message there himself, with fleet marshals behind him and an old smuggler's debt coming due."},
+  {id:"out2",type:"outline",subtype:"one page",title:"Story on a page",body:"Act 1: the relay fails, Kira arrives, the chip.\nAct 2: Titan, Oduya's price, finding Daniel.\nAct 3: the run to Earth.\n(Expand this into a full page with the co-writer.)"},
+  {id:"stephen",type:"character",subtype:"protagonist",title:"Stephen Blacksmith",body:"Ex-navy pilot, 41. Lost his brother Daniel in the Titan riots (2187) and resigned his commission the next week. Works cargo on Halcyon Station and avoids anyone from the old fleet.\n\nWants: to be left alone. Needs: to stop treating Daniel's death as his fault."},
+  {id:"kira",type:"character",subtype:"ally",title:"Kira Vos",body:"Signals analyst. Worked with Daniel before the riots. Precise, impatient, funny only when exhausted. Believes Daniel found something on Titan."},
+  {id:"daniel",type:"character",subtype:"minor",title:"Daniel Blacksmith",body:"Stephen's younger brother. Engineer. Died during the Titan riots, 2187. Or so everyone thinks."},
+  {id:"oduya",type:"character",subtype:"rival",title:"Oduya",body:"Smuggler who runs ice and people out of Titan. Got Stephen off-world in 2187 for a price he never paid. Charming, patient, never forgets a debt."},
+  {id:"marshals",type:"group",subtype:"faction",title:"Fleet marshals",body:"Fleet police. Ran the Titan crackdown. Answer to Admiral Haas. On Halcyon within hours of the blackout."},
+  {id:"rel1",type:"relationship",subtype:"siblings",title:"Stephen & Daniel",body:"Stephen raised Daniel while their father flew freighters. Fierce loyalty, unspoken resentment. Their last words before the riots were an argument."},
+  {id:"arc1",type:"arc",subtype:"change arc",title:"Stephen: from hiding to carrying",body:"Starts: believes distance keeps people safe.\nMidpoint: Titan forces him to rely on Kira and Oduya.\nEnds: chooses to carry the message, and lets others carry part of it with him."},
+  {id:"arc2",type:"arc",subtype:"flat arc",title:"Kira: the steady signal",body:"She doesn't change. Her certainty is what changes Stephen."},
+  {id:"halcyon",type:"setting",subtype:"station",title:"Halcyon Station",body:"Freight station orbiting Saturn. Smells of coolant. 3,000 residents, mostly contract crews. Dock 7 is the oldest bay."},
+  {id:"titan",type:"setting",subtype:"moon",title:"Titan",body:"Mining colony. Site of the 2187 riots. Officially closed to civilians since."},
+  {id:"ftl",type:"rule",subtype:"communication",title:"FTL Relay",body:"Messages hop between relay buoys. Saturn to Earth takes about 3 days. No relay, no message. There is no faster channel."},
+  {id:"torch",type:"rule",subtype:"travel",title:"Torch travel",body:"Fusion torch ships. Saturn to Earth is 3 to 5 weeks depending on orbits. Fleet couriers do it in 2 weeks by burning hard, which wrecks the crew. No jump drives."},
+  {id:"chip",type:"object",subtype:"clue",title:"Kira's data chip",body:"Old navy-format chip. Holds Daniel's last recordings and, hidden in the metadata, override codes for Halcyon's docking clamps."},
+  {id:"ev1",type:"event",subtype:"history",title:"The Titan riots",body:"2187. Miners strike, the fleet cracks down, 400 dead. Daniel listed among them. Stephen escapes on Oduya's ship."},
+  {id:"grand",type:"plot",subtype:"grand plot",title:"The Silence",body:"Someone shuts down the relay network to hide what was found on Titan. Stephen has to get the truth to Earth with no way to talk to it."},
+  {id:"debt",type:"plot",subtype:"subplot",title:"The smuggler's debt",body:"Stephen owes Oduya for getting him off Titan in 2187. The debt comes due at the worst time."},
+  {id:"kirasub",type:"plot",subtype:"subplot",title:"Kira's search",body:"Kira has spent two years looking for Daniel. She needs Stephen more than she admits."},
+  {id:"sec1",type:"secret",subtype:"secret",title:"Daniel is alive",body:"Daniel survived the riots and has been hiding near Titan. Known by: Daniel. Kira suspects. Stephen learns in Chapter 2."},
+  {id:"th1",type:"theme",subtype:"theme",title:"Distance vs. protection",body:"Does keeping away keep people safe? Every major choice tests this."},
+  {id:"q1",type:"question",subtype:"open question",title:"Who cut the relays?",body:"Opened when the relay dies. Readers should suspect Haas, then the Concord Board, before the truth."},
+  {id:"q2",type:"question",subtype:"open question",title:"Is Daniel alive?",body:"Raised by Kira in Dock 7. Answered on Titan."},
+  {id:"ch1",type:"chapter",subtype:"chapter 1",title:"The Relay Goes Dark",pos:0,purpose:"Establish Stephen's exile on Halcyon and the moment Earth goes silent.",opens:"Stephen hauling cargo in Dock 7, ignoring a message from his past.",closes:"Every relay channel drops at once. Then one message gets through anyway."},
+  {id:"s11",type:"scene",subtype:"discovery",title:"Dock 7",parent:"ch1",pos:0,body:"Goal: finish the shift unnoticed.\nConflict: Kira shows up asking about Daniel.\nOutcome: he refuses, but pockets her data chip.",prose:"The cargo arm groaned the way it always did on the third lift, a sound Stephen had stopped hearing two years ago.\n\nHe heard it now, because Kira Vos was standing at the edge of Dock 7 like she owned it."},
+  {id:"b111",type:"beat",subtype:"setup",title:"Kira leaves the chip",parent:"s11",pos:0,body:"Kira leaves the chip on the console. Stephen pockets it without reading."},
+  {id:"b112",type:"beat",subtype:"confrontation",title:"Stephen refuses",parent:"s11",pos:1,body:"He tells her Daniel is dead and that's the end of it."},
+  {id:"s12",type:"scene",subtype:"action",title:"Silence",parent:"ch1",pos:1,body:"Goal: get off shift.\nConflict: the FTL Relay fails across all channels.\nOutcome: a message from Earth arrives seconds later anyway.",prose:""},
+  {id:"b121",type:"beat",subtype:"reveal",title:"Board goes red",parent:"s12",pos:0,body:"Every channel fails at once. Station-wide."},
+  {id:"b122",type:"beat",subtype:"cliffhanger",title:"One message gets through",parent:"s12",pos:1,body:"From Earth. Impossible."},
+  {id:"ch2",type:"chapter",subtype:"chapter 2",title:"What Daniel Knew",pos:1,purpose:"Stephen reads the chip and can't un-know it.",opens:"Panic on the station. Marshals at the comms office.",closes:"The chip's last file is addressed to him, dated after Daniel's death."},
+  {id:"s21",type:"scene",subtype:"action",title:"Station panic",parent:"ch2",pos:0,body:"Goal: stay invisible.\nConflict: fleet marshals arrive, and one recognizes Stephen.\nOutcome: he slips away, now on their list.",prose:""},
+  {id:"b211",type:"beat",subtype:"reversal",title:"A marshal knows his face",parent:"s21",pos:0,body:"Sergeant Ilsa Mora served with him. She says nothing. Yet."},
+  {id:"s22",type:"scene",subtype:"discovery",title:"Reading the chip",parent:"ch2",pos:1,body:"Goal: prove Kira wrong.\nConflict: Daniel's voice.\nOutcome: Daniel recorded something after the date he supposedly died.",prose:""},
+  {id:"b221",type:"beat",subtype:"payoff",title:"He finally reads it",parent:"s22",pos:0,body:"The chip from Dock 7. Daniel's recordings."},
+  {id:"b222",type:"beat",subtype:"reveal",title:"The impossible date",parent:"s22",pos:1,body:"The last file is dated three weeks after the riots."},
+  {id:"ch3",type:"chapter",subtype:"chapter 3",title:"The Clamp",pos:2,purpose:"Stephen's first real trap. He decides to run.",opens:"Oduya's message: the debt is due.",closes:"Stephen's ship breaks free of Halcyon, Kira aboard."},
+  {id:"s31",type:"scene",subtype:"dialogue",title:"Oduya calls in the debt",parent:"ch3",pos:0,body:"Goal: buy time.\nConflict: Oduya wants a run through the marshal blockade.\nOutcome: Stephen agrees, on his terms.",prose:""},
+  {id:"b311",type:"beat",subtype:"setup",title:"Oduya's marker",parent:"s31",pos:0,body:"Oduya gives Stephen a brass marker. \"Show this on Titan and doors open.\""},
+  {id:"s32",type:"scene",subtype:"action",title:"The decompressing bay",parent:"ch3",pos:1,body:"Goal: reach the ship.\nConflict: marshals seal him in a bay and start venting it.\nOutcome: he escapes using the chip.",prose:""},
+  {id:"b321",type:"beat",subtype:"trap-and-escape",title:"Locked in the bay",parent:"s32",pos:0,corner:"Stephen is sealed in Bay 4 as the marshals vent it. Two minutes of air.",fails:"The emergency door is held from outside. Comms are dead with the relay down.",way:"The chip holds Daniel's override codes for the old docking clamps. Stephen releases the whole bay section into space, ship and all."}
+ ],
+ links:[
+  {from:"stephen",to:"daniel",label:"brother of"},{from:"kira",to:"daniel",label:"worked with"},{from:"oduya",to:"stephen",label:"is owed by"},{from:"arc1",to:"stephen",label:"arc of"},{from:"arc2",to:"kira",label:"arc of"},{from:"rel1",to:"stephen",label:"between"},{from:"rel1",to:"daniel",label:"between"},{from:"ev1",to:"titan",label:"happened on"},{from:"chip",to:"kira",label:"owned by"},
+  {from:"s11",to:"stephen",label:"POV"},{from:"s11",to:"kira",label:"present"},{from:"s11",to:"halcyon",label:"set in"},{from:"s11",to:"chip",label:"features"},
+  {from:"s12",to:"stephen",label:"POV"},{from:"s12",to:"halcyon",label:"set in"},
+  {from:"s21",to:"stephen",label:"POV"},{from:"s21",to:"marshals",label:"present"},{from:"s21",to:"halcyon",label:"set in"},
+  {from:"s22",to:"stephen",label:"POV"},{from:"s22",to:"chip",label:"features"},
+  {from:"s31",to:"stephen",label:"POV"},{from:"s31",to:"oduya",label:"present"},
+  {from:"s32",to:"stephen",label:"POV"},{from:"s32",to:"marshals",label:"present"},{from:"s32",to:"chip",label:"features"},
+  {from:"s11",to:"kirasub",label:"opens"},{from:"s11",to:"q2",label:"opens"},{from:"s11",to:"th1",label:"explores"},
+  {from:"s12",to:"grand",label:"opens"},{from:"s12",to:"q1",label:"opens"},
+  {from:"s21",to:"grand",label:"advances"},{from:"s22",to:"sec1",label:"advances"},{from:"s22",to:"kirasub",label:"advances"},
+  {from:"s31",to:"debt",label:"opens"},{from:"s32",to:"grand",label:"advances"},{from:"s32",to:"th1",label:"explores"},
+  {from:"b221",to:"b111",label:"pays off"},{from:"b321",to:"chip",label:"uses"}
+ ],
+ versions:{s11:[{t:"Today, 9:42",n:"Drafted opening lines"},{t:"Yesterday",n:"Scene plan created"}],stephen:[{t:"Today, 9:10",n:"Added want vs. need"},{t:"Oct 10",n:"Created from co-writer"}]},
+ sugs:[
+  {id:"g1",card:"s12",action:"flag_issue",what:"Message arrives instantly",why:"FTL Relay says Saturn to Earth takes about 3 days, and the relay is down here.",preview:"Option: it's a message sent 3 days ago that lands just as the relay drops.",fix:["body","\n(Fix: the message was sent 3 days earlier.)"],status:"pending"},
+  {id:"g2",card:"stephen",action:"add_link",what:"Link to Halcyon Station",why:"His notes say he works cargo on Halcyon Station.",link:{from:"stephen",to:"halcyon",label:"lives on"},status:"pending"},
+  {id:"g3",card:"stephen",action:"add_link",what:"Link to The Titan riots",why:"His backstory mentions the riots.",link:{from:"stephen",to:"ev1",label:"survived"},status:"pending"},
+  {id:"g4",card:"b311",action:"flag_issue",what:"Setup has no payoff",why:"Oduya's marker is a setup beat with no linked payoff beat.",preview:"Option: pay it off on Titan, when the marker gets them past a checkpoint.",fix:["body","\nPays off: on Titan, at the checkpoint."],status:"pending"},
+  {id:"g5",card:"debt",action:"flag_issue",what:"Subplot goes quiet",why:"The smuggler's debt isn't touched in Chapter 1 or 2, then opens in Chapter 3.",preview:"Option: hint at it in Station panic. Stephen ignores a message from Oduya.",fix:["body","\nSeed: Oduya's ignored message in Chapter 2."],status:"pending"},
+  {id:"g6",card:"out2",action:"flag_issue",what:"Outline is still a sketch",why:"The one-page outline is 4 lines. Expand it before drafting Act 2.",preview:"Option: ask the co-writer to expand it.",status:"pending"}
+ ],
+ sec:"chapters",card:null,dTab:"suggestions",threads:{},reading:false
+};
+const $=s=>document.querySelector(s);
+const byId=i=>S.cards.find(c=>c.id===i);
+const esc=s=>(s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const kidsOf=id=>S.cards.filter(c=>c.parent===id).sort((a,b)=>(a.pos||0)-(b.pos||0));
+const secOf=c=>{let x=c;while(x&&x.parent)x=byId(x.parent);return SECTIONS.find(s=>s.types.includes(x.type))};
+const pend=()=>S.sugs.filter(s=>s.status==="pending");
+const pendOn=ids=>pend().filter(s=>ids.includes(s.card));
+const descend=id=>{const out=[id];kidsOf(id).forEach(k=>out.push(...descend(k.id)));return out};
+const topOf=sec=>S.cards.filter(c=>!c.parent&&sec.types.includes(c.type)).sort((a,b)=>(a.pos||0)-(b.pos||0));
+const secIds=sec=>topOf(sec).flatMap(c=>descend(c.id));
+const snip=c=>c.body||c.purpose||c.corner||"";
+function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("on");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),1800)}
+
+/* RAIL */
+function renderRail(){
+  $("#path").innerHTML='<div class="toc-h">Contents</div>'+SECTIONS.map((s,i)=>{
+    const n=topOf(s).length,p=pendOn(secIds(s)).length,on=S.sec===s.k;
+    let extra="";if(s.k==="chapters"){const sc=S.cards.filter(c=>c.type==="scene").length,bt=S.cards.filter(c=>c.type==="beat").length;extra=`, ${sc} scenes, ${bt} beats`}
+    return `<button class="step ${n?"done":""} ${on?"on":""}" style="--c:${s.c}" data-sec="${s.k}"><span class="pin">${i+1}</span><span class="txt"><span class="nm">${s.name}</span><span class="lead"></span><span class="pg">${s.k==="chapters"?S.cards.filter(c=>c.type==="scene").length+" sc":n}</span></span>${p?`<span class="bdg count">${p}</span>`:""}</button>`;
+  }).join("");
+  const f=pend().filter(s=>s.action==="flag_issue").length;
+  $("#flags").innerHTML=`<span class="count" style="${f?"":"background:var(--line);color:var(--dim)"}">${f}</span><span><b>Continuity check</b><span>${f?"Issues to review":"All clear"}</span></span>`;
+}
+
+/* MAIN */
+function renderMain(){
+  const sec=SECTIONS.find(s=>s.k===S.sec),c=S.card&&byId(S.card);
+  if(S.sec==="flags"&&!c){
+    $("#head").innerHTML=`<div class="crumbs">Continuity check</div><h2>Story issues</h2><div class="sub">Contradictions, setups with no payoff, subplots that go quiet, and thin spots across the whole book. Review them on the right.</div>`;
+    const list=pend().filter(s=>s.action==="flag_issue").map(s=>byId(s.card)).filter((v,i,a)=>v&&a.indexOf(v)===i);
+    $("#scroll").innerHTML=list.length?`<div class="grid">${list.map(cardHtml).join("")}</div>`:'<div class="note">No open issues.</div>';
+  }else if(!c){
+    $("#head").innerHTML=`<div class="crumbs">Step ${SECTIONS.indexOf(sec)+1} of ${SECTIONS.length}</div><h2>${sec.name}</h2><div class="sub">${sec.about}</div>`;
+    const list=topOf(sec);let h="";
+    if(sec.types.length>1)sec.types.forEach(t=>{const l=list.filter(x=>x.type===t);if(l.length)h+=`<div class="groupname">${GROUP[t]}</div><div class="grid">${l.map(cardHtml).join("")}</div>`});
+    else h=`<div class="grid">${list.map(cardHtml).join("")}</div>`;
+    $("#scroll").innerHTML=h+`<div class="groupname">Add</div><div class="grid"><button class="card new" id="newcard">+ New ${sec.k==="chapters"?"chapter":"card"}</button></div>`;
+  }else{
+    const chain=[];let x=c;while(x){chain.unshift(x);x=x.parent?byId(x.parent):null}
+    $("#head").innerHTML=`<div class="crumbs"><button data-sec="${sec.k}">← All ${sec.name.toLowerCase()}</button>${chain.slice(0,-1).map(p=>`<span>/</span><button data-card="${p.id}">${esc(p.title)}</button>`).join("")}</div>
+      <span class="kindpill" style="--c:${TC[c.type]}"><i></i>${c.type}${c.subtype?", "+esc(c.subtype):""}</span>
+      <input class="titlein" data-f="title" value="${esc(c.title)}" aria-label="Title">`;
+    $("#scroll").innerHTML=c.type==="chapter"?chapterHtml(c):c.type==="scene"?sceneHtml(c):c.type==="beat"?beatHtml(c):plainHtml(c);
+  }
+  renderDock();
+}
+function cardHtml(c){
+  const p=pendOn(descend(c.id)).length,lk=S.links.filter(l=>l.from===c.id||l.to===c.id).length,k=kidsOf(c.id).length;
+  const kn=c.type==="chapter"?"scene":"beat";
+  return `<button class="card" style="--c:${TC[c.type]}" data-card="${c.id}"><span class="kind"><span>${esc(c.subtype||c.type)}</span><span>${c.type}</span></span><span class="ttl">${esc(c.title)}</span><span class="snip">${esc(snip(c))}</span><span class="meta">${k?`<span>${k} ${kn}${k>1?"s":""}</span>`:""}${lk?`<span>${lk} link${lk>1?"s":""}</span>`:""}${p?`<span class="count">${p}</span>`:""}</span></button>`;
+}
+const fld=(c,f,label,cls="")=>`<div class="fld"><label>${label}</label><textarea class="ta ${cls}" data-f="${f}" aria-label="${label}">${esc(c[f])}</textarea></div>`;
+const chips=list=>`<div class="actions">${list.map(([k,l])=>`<button class="chip" data-ai="${k}">${l}</button>`).join("")}</div>`;
+function rowsHtml(list,empty){
+  if(!list.length)return `<div class="note">${empty}</div>`;
+  return list.map((k,i)=>`<div class="row"><div class="mv"><button data-mv="${k.id}:-1" ${i?"":"disabled"} aria-label="Move up">↑</button><button data-mv="${k.id}:1" ${i<list.length-1?"":"disabled"} aria-label="Move down">↓</button></div>${cardHtml(k)}</div>`).join("");
+}
+function threadsHtml(ids){
+  const ls=S.links.filter(l=>ids.includes(l.from)&&byId(l.to)&&THREAD_TYPES.includes(byId(l.to).type));
+  if(!ls.length)return '<div class="note">No threads linked yet.</div>';
+  return ls.map(l=>{const t=byId(l.to),src=byId(l.from);return `<div class="thr" style="--c:${TC[t.type]}"><i></i><button data-card="${t.id}">${esc(t.title)}</button><span class="lab ${l.label}">${l.label}</span><small>${src.type==="chapter"?"":"in "+esc(src.title)}</small></div>`}).join("");
+}
+function whoHtml(c){
+  const ls=S.links.filter(l=>l.from===c.id&&byId(l.to)&&CAST_TYPES.includes(byId(l.to).type));
+  return ls.length?`<div class="who">${ls.map(l=>{const o=byId(l.to);return `<button class="tag" style="--c:${TC[o.type]}" data-card="${o.id}"><i></i>${esc(o.title)} <small>${esc(l.label)}</small></button>`}).join("")}</div>`:'<div class="note">Nobody linked yet.</div>';
+}
+function chapterHtml(c){
+  const scenes=kidsOf(c.id);
+  if(S.reading)return `<div class="actions" style="margin:0 0 6px"><button class="chip" data-read="0">← Back to chapter plan</button></div><div class="reading">${scenes.map(s=>`<h3>${esc(s.title)} <button data-card="${s.id}">Edit</button></h3>${s.prose?s.prose.split(/\n\n+/).map(p=>`<p>${esc(p)}</p>`).join(""):'<p class="gap">Not drafted yet.</p>'}`).join("")}</div>`;
+  return `<div class="block"><h3>Chapter plan</h3>${fld(c,"purpose","Purpose: what this chapter does","sm")}${fld(c,"opens","Opens on: the hook that pulls readers in","sm")}${fld(c,"closes","Closes on: the hook that makes them turn the page","sm")}${chips([["hooks","Sharpen the hooks"],["scenes","Brainstorm scenes"],["threads","Suggest threads"]])}</div>
+  <div class="block"><h3>Threads in this chapter</h3>${threadsHtml(descend(c.id))}</div>
+  <div class="block"><h3>Scenes</h3>${rowsHtml(scenes,"No scenes yet. Brainstorm some from the chapter plan.")}<div class="actions"><button class="chip" data-read="1">Read whole chapter</button><button class="chip" data-ai="check">Check chapter continuity</button></div></div>`;
+}
+function sceneHtml(c){
+  return `<div class="block"><h3>Scene plan</h3><textarea class="ta sm" data-f="body" aria-label="Scene plan">${esc(c.body)}</textarea>${chips([["beats","Suggest beats"],["flesh","Strengthen the plan"]])}</div>
+  <div class="block"><h3>In this scene</h3>${whoHtml(c)}${chips([["who","Suggest who and where"]])}</div>
+  <div class="block"><h3>Threads this scene moves</h3>${threadsHtml(descend(c.id))}${chips([["threads","Suggest threads"]])}</div>
+  <div class="block"><h3>Beats</h3>${rowsHtml(kidsOf(c.id),"No beats yet.")}</div>
+  <div class="block"><h3>Prose</h3><textarea class="ta prose" data-f="prose" aria-label="Prose" placeholder="Start writing here, or draft it with the co-writer.">${esc(c.prose)}</textarea>${chips([["draft","Draft this scene"],["dialogue","Write the dialogue"],["check","Check continuity"]])}</div>`;
+}
+function beatHtml(c){
+  const pay=S.links.filter(l=>l.label==="pays off"&&(l.from===c.id||l.to===c.id));
+  const uses=S.links.filter(l=>l.from===c.id&&l.label!=="pays off");
+  let h=`<div class="block" style="--c:${TC.beat}"><h3>Beat type</h3><div class="bt">${BEATS.map(b=>`<button data-bt="${b}" aria-pressed="${c.subtype===b}">${b}</button>`).join("")}</div></div>`;
+  if(c.subtype==="trap-and-escape")h+=`<div class="block"><h3>Trap and escape</h3>${fld(c,"corner","The corner: how bad it is","sm")}${fld(c,"fails","Exits that fail","sm")}${fld(c,"way","The unexpected way out","sm")}${chips([["escapes","Brainstorm other escapes"],["earned","Is the escape earned?"]])}</div>`;
+  else h+=`<div class="block"><h3>What happens</h3><textarea class="ta sm" data-f="body" aria-label="What happens">${esc(c.body)}</textarea>${chips([["flesh","Sharpen this beat"]])}</div>`;
+  h+=`<div class="block"><h3>Setup and payoff</h3>${pay.length?pay.map(l=>{const o=byId(l.from===c.id?l.to:l.from);return `<div class="thr" style="--c:${TC.beat}"><i></i><button data-card="${o.id}">${esc(o.title)}</button><span class="lab resolves">${l.from===c.id?"pays off":"paid off by"}</span></div>`}).join(""):'<div class="note">Not connected to a setup or payoff.</div>'}${uses.length?`<div class="who" style="margin-top:8px">${uses.map(l=>{const o=byId(l.to);return `<button class="tag" style="--c:${TC[o.type]}" data-card="${o.id}"><i></i>${esc(o.title)} <small>${esc(l.label)}</small></button>`}).join("")}</div>`:""}${c.subtype==="setup"&&!pay.length?chips([["payoff","Find a payoff"]]):""}</div>`;
+  return h;
+}
+function plainHtml(c){
+  const acts={character:[["flesh","Flesh out backstory"],["wantneed","Want vs. need"]],premise:[["expand","Expand to a paragraph"]],outline:[["expand","Expand this"]],arc:[["flesh","Map the turning points"]],plot:[["flesh","Add complications"]]}[c.type]||[["flesh","Flesh out"]];
+  acts.push(["links","Suggest links"]);
+  let h=`<div class="block"><h3>Notes</h3><textarea class="ta" data-f="body" aria-label="Notes">${esc(c.body)}</textarea>${chips(acts)}</div>`;
+  if(THREAD_TYPES.includes(c.type)){
+    const ls=S.links.filter(l=>l.to===c.id&&byId(l.from)&&["scene","chapter"].includes(byId(l.from).type));
+    h+=`<div class="block"><h3>Where it shows up</h3>${ls.length?ls.map(l=>{const s=byId(l.from),ch=s.parent?byId(s.parent):s;return `<div class="thr" style="--c:${TC[s.type]}"><i></i><button data-card="${s.id}">${esc(s.title)}</button><span class="lab ${l.label}">${l.label}</span><small>${esc(ch.subtype||"")}</small></div>`}).join(""):'<div class="note">Not in any scene yet.</div>'}</div>`;
+  }
+  return h;
+}
+
+/* DOCK */
+const scopeKey=()=>S.card||S.sec;
+function renderDock(){
+  const t=S.threads[scopeKey()]||[];
+  $("#thread").innerHTML=t.map(m=>m.who==="me"?`<div class="msg me">${esc(m.text)}</div>`:`<div class="msg ai">${m.html}</div>`).join("");
+  const th=$("#thread");th.scrollTop=th.scrollHeight;
+  const c=S.card&&byId(S.card),sec=SECTIONS.find(s=>s.k===S.sec);
+  $("#say").placeholder=c?`Talk about ${c.title}…`:S.sec==="flags"?"Ask about the story, like “where is Kira in chapter 2?”":`Brainstorm ${sec.name.toLowerCase()}…`;
+  const hints={characters:["Brainstorm antagonists who want the relay shut down."],chapters:["Trap Kira in chapter 2 with no obvious way out."],plots:["Brainstorm subplots that complicate the run to Earth."],world:["Add the Concord Board, the company that owns the relays."],flags:["Where is Kira in chapter 2?"]}[S.sec];
+  $("#hint").innerHTML=!c&&!t.length&&hints?hints.map(q=>`<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join(""):"";
+}
+
+/* SIDE */
+function renderSide(){
+  const c=S.card&&byId(S.card);
+  const ids=c?descend(c.id):S.sec==="flags"?S.cards.map(x=>x.id):secIds(SECTIONS.find(s=>s.k===S.sec));
+  const mine=S.sec==="flags"&&!c?pend().filter(s=>s.action==="flag_issue"):pend().filter(s=>ids.includes(s.card)||(s.card==="*"&&s.sec===S.sec));
+  $("#scope").innerHTML=c?`Selected card<b>${esc(c.title)}</b>`:`Showing everything in<b>${S.sec==="flags"?"Continuity check":SECTIONS.find(s=>s.k===S.sec).name}</b>`;
+  if(!c)S.dTab="suggestions";
+  const tabs=c?[["suggestions","Suggestions",mine.length],["links","Links"],["history","History"]]:[["suggestions","Suggestions",mine.length]];
+  $("#dtabs").innerHTML=tabs.map(([k,l,n])=>`<button role="tab" aria-selected="${S.dTab===k}" data-d="${k}">${l}${n?` <span class="count">${n}</span>`:""}</button>`).join("");
+  let h="";
+  if(S.dTab==="suggestions")h=mine.length?mine.map(s=>sugHtml(s,!c||s.card!==c.id)).join(""):'<div class="note">Nothing waiting here. Ask the co-writer for ideas and they\'ll land here for approval.</div>';
+  else if(S.dTab==="links"){const ls=S.links.filter(l=>l.from===c.id||l.to===c.id);h=ls.length?ls.map(l=>{const o=byId(l.from===c.id?l.to:l.from);return `<button class="lnk" style="--c:${TC[o.type]}" data-card="${o.id}"><i></i><span>${esc(o.title)}<small>${l.from===c.id?"":"← "}${esc(l.label)}</small></span></button>`}).join(""):'<div class="note">No links yet. Try “Suggest links”.</div>'}
+  else{const v=S.versions[c.id]||[];h=v.length?v.map((x,i)=>`<div class="ver"><div>${esc(x.n)}<span>${x.t}</span></div>${x.snap?`<button class="btn sm ghost" data-restore="${i}">Restore</button>`:""}</div>`).join(""):'<div class="note">No saved versions yet.</div>'}
+  $("#dbody").innerHTML=h;
+}
+function sugHtml(s,show){
+  const on=show&&byId(s.card)?`<div class="on">On ${esc(byId(s.card).title)}</div>`:s.card==="*"?`<div class="on">New card</div>`:"";
+  return `<div class="sug">${on}<div class="what">${esc(s.what)}</div><div class="why">${esc(s.why)}</div>${s.preview?`<div class="preview">${esc(s.preview).replace(/\n/g,"<br>")}</div>`:""}<div class="acts">${s.action==="flag_issue"?`<button class="btn sm" data-acc="${s.id}">Apply fix</button><button class="btn sm ghost" data-rej="${s.id}">It's intentional</button>`:`<button class="btn sm ok" data-acc="${s.id}">Accept</button><button class="btn sm ghost" data-rej="${s.id}">Dismiss</button>`}</div></div>`;
+}
+
+/* ACTIONS */
+function addVer(id,n,snap){(S.versions[id]=S.versions[id]||[]).unshift({t:"Just now",n,snap})}
+function nextPos(parent){const sib=S.cards.filter(c=>c.parent===parent);return sib.length?Math.max(...sib.map(c=>c.pos||0))+1:0}
+function accept(id){
+  const s=S.sugs.find(x=>x.id===id);s.status="accepted";
+  if(s.action==="add_link"){S.links.push(s.link);toast("Link added")}
+  else if(s.action==="create_card"){s.data.pos=nextPos(s.data.parent);S.cards.push(s.data);(s.links||[]).forEach(l=>S.links.push(l));addVer(s.data.id,"Created from co-writer");toast(`Added ${s.data.title}`)}
+  else if(s.action==="update_card"){const c=byId(s.card);addVer(c.id,"Co-writer addition accepted",{...c});c[s.field]=s.replace?s.text:(c[s.field]?c[s.field]+"\n\n":"")+s.text;toast("Updated")}
+  else{const c=byId(s.card);if(c&&s.fix){addVer(c.id,"Continuity fix applied",{...c});c[s.fix[0]]=(c[s.fix[0]]||"")+s.fix[1]}toast("Fix applied")}
+  render();
+}
+function reject(id){S.sugs.find(x=>x.id===id).status="rejected";toast("Dismissed. It won't be suggested again.");render()}
+function save(f,v){const c=byId(S.card);if(!c||c[f]===v)return;addVer(c.id,{title:"Renamed",prose:"Prose edited"}[f]||"Plan edited",{...c});c[f]=v;renderRail();renderSide()}
+function move(id,d){const c=byId(id),sib=kidsOf(c.parent),i=sib.indexOf(c),o=sib[i+d];if(!o)return;sib.forEach((s,j)=>s.pos=j);[c.pos,o.pos]=[o.pos,c.pos];renderMain()}
+function openSec(k){S.sec=k;S.card=null;S.reading=false;S.dTab="suggestions";render();mobGo("main")}
+function openCard(i){const c=byId(i);S.card=i;S.sec=secOf(c).k;S.reading=false;S.dTab="suggestions";render();mobGo("main")}
+
+/* MOCK CO-WRITER: pass 1 writes, pass 2 structures */
+function ask(text,kind){
+  const key=scopeKey(),t=S.threads[key]=S.threads[key]||[],sec=S.sec;
+  if(text)t.push({who:"me",text});
+  const m={who:"ai",html:'<div class="pass">Writing…</div>'};t.push(m);renderDock();
+  setTimeout(()=>{const r=reply(text||"",kind);m.html=r.html+(r.sugs?'<div class="pass"><b>Structuring into cards…</b></div>':"");renderDock();
+    if(!r.sugs)return;
+    setTimeout(()=>{r.sugs.forEach(x=>S.sugs.push(Object.assign({id:nid(),status:"pending",sec},x)));const n=r.sugs.length;
+      m.html=r.html+`<div class="pass">${n?`<b>${n} suggestion${n>1?"s":""}</b> ready for review on the right`:"No card changes suggested"}</div>`;S.dTab="suggestions";render();if(n&&innerWidth<=960)toast(`${n} suggestion${n>1?"s":""} in Details`)},850)},650);
+}
+const P=s=>`<p>${esc(s).replace(/\n/g,"<br>")}</p>`;
+function reply(t,k){
+  const c=S.card&&byId(S.card);
+  if(c&&k==="hooks"){const opens="Mid-lift, the cargo arm jammed, Stephen alone in Dock 7. A message from an old fleet address has been blinking for three days.",closes="The relay board goes red, every channel at once. Then one message gets through anyway, signed by a dead man.";
+    return {html:`<h4>Sharper hooks</h4><p><b>Opens on.</b> ${opens}</p><p><b>Closes on.</b> ${closes}</p>`,sugs:[{card:c.id,action:"update_card",field:"opens",text:opens,replace:true,what:"Replace opening hook",why:"Starts in motion, with the past already knocking.",preview:opens},{card:c.id,action:"update_card",field:"closes",text:closes,replace:true,what:"Replace closing hook",why:"Ends on an impossible fact.",preview:closes}]}}
+  if(c&&(k==="flesh"||k==="expand")){
+    const text=c.type==="character"?`As a boy, ${c.title.split(" ")[0]} was the one who got Daniel out of trouble, never the one in it. Their father flew freighters eight months a year, so "keep your brother safe" became the whole job. That's why the riots broke him: the one promise he'd built his life around, he failed.`
+      :c.type==="premise"?"Stephen Blacksmith left the navy after the Titan riots killed his brother. Two years later the relays go dark, and Kira Vos shows up with proof that Daniel is alive and may have caused it. To reach Earth before the truth is buried, Stephen must fly the message himself, owing favors he can't repay to people he can't trust."
+      :c.type==="outline"?"Act 2, expanded: Stephen and Kira reach Titan's closed zone under Oduya's flag. Oduya's price is a cargo run through the marshals' blockade. They find Daniel's hideout empty, except for a working relay he built himself. Midpoint: it's been switched off from the inside."
+      :c.type==="scene"?"Raise the cost: Kira only gives up the chip because she's being watched. Stephen sees the watcher and says nothing, which makes him complicit."
+      :c.type==="beat"?"Make it physical: Stephen covers the chip with his palm before he's decided anything. His hand decides first."
+      :"Complication: the solution to this creates a smaller problem that bleeds into the next chapter.";
+    return {html:`<h4>${esc(c.title)}</h4>${P(text)}`,sugs:[{card:c.id,action:"update_card",field:"body",text,what:"Add this to the card",why:"Copied word for word from the response.",preview:text}]};
+  }
+  if(c&&k==="wantneed"){const text="Wants: to be left alone and never fly again.\nNeeds: to accept that keeping everyone safe was never possible, and let someone share the weight.";return {html:`<p>The gap: he thinks distance protects people. The story should keep proving that distance is what gets them hurt.</p>${P(text)}`,sugs:[{card:c.id,action:"update_card",field:"body",text,what:"Update want vs. need",why:"From the response.",preview:text}]}}
+  if(c&&(k==="links"||k==="who")){
+    const hay=[c.body,c.prose,c.purpose,c.opens,c.closes].join(" ").toLowerCase();
+    const pool=k==="who"?S.cards.filter(o=>CAST_TYPES.includes(o.type)):S.cards;
+    const found=pool.filter(o=>o.id!==c.id&&hay.includes(o.title.split(" ")[0].toLowerCase())&&o.title.length>3&&!S.links.some(l=>(l.from===c.id&&l.to===o.id)||(l.to===c.id&&l.from===o.id))&&!S.sugs.some(s=>s.link&&s.link.from===c.id&&s.link.to===o.id));
+    return {html:`<p>I read ${esc(c.title)} for mentions. ${found.length?`${found.length} aren't linked yet. Approve only the real ones.`:"Everything it mentions is already linked."}</p>`,sugs:found.map(o=>({card:c.id,action:"add_link",link:{from:c.id,to:o.id,label:k==="who"?(o.type==="setting"?"set in":"present"):"mentions"},what:`Link to ${o.title}`,why:`“${o.title.split(" ")[0]}” appears in the text.`}))};
+  }
+  if(c&&k==="threads"){
+    const target=c.type==="chapter"?kidsOf(c.id)[0]||c:c;
+    const opts=[["debt","advances","Stephen ignores another message from Oduya. The debt is still there."],["th1","explores","Stephen keeps his distance and someone pays for it."]].filter(([to])=>!S.links.some(l=>l.from===target.id&&l.to===to));
+    return {html:`<p>Threads that could run through ${esc(target.title)}:</p>`+opts.map(([to,lab,why])=>`<p><b>${esc(byId(to).title)}</b> (${lab}). ${why}</p>`).join(""),sugs:opts.map(([to,lab,why])=>({card:target.id,action:"add_link",link:{from:target.id,to,label:lab},what:`${lab[0].toUpperCase()+lab.slice(1)} ${byId(to).title}`,why}))};
+  }
+  if(c&&(k==="scenes"||k==="beats")){
+    const ideas=k==="scenes"?[["Kira's offer","dialogue","She needs a pilot to reach Titan. He says no, but asks how long the flight is."],["Mora's warning","dialogue","The marshal who knows his face tells him he has one day."]]:[["The pause","decision","Stephen's hand hovers over the console. He chooses."],["Someone is watching","reveal","A marshal's drone has been in the bay the whole time."],["Out of time","cliffhanger","The bay doors start to close."]];
+    const ty=k==="scenes"?"scene":"beat";
+    return {html:`<h4>${ty==="scene"?"Scene":"Beat"} ideas</h4>`+ideas.map(([a,st,b])=>`<p><b>${a}</b> (${st}). ${b}</p>`).join("")+"<p>Keep the ones that fit. They'll slot in at the end, and you can reorder them.</p>",sugs:ideas.map(([a,st,b])=>({card:c.id,action:"create_card",data:{id:nid(),type:ty,subtype:st,title:a,body:b,prose:"",parent:c.id},what:`New ${ty}: ${a}`,why:"From the brainstorm.",preview:b}))};
+  }
+  if(c&&k==="payoff"){const id=nid(),b="On Titan, the checkpoint guard sees Oduya's brass marker and waves them through. Kira realizes Stephen and Oduya go back further than he said.";
+    return {html:`<h4>A payoff for ${esc(c.title)}</h4>${P(b)}<p>It pays off twice: it gets them through, and it reveals something about Stephen.</p>`,sugs:[{card:"*",sec:"chapters",action:"create_card",data:{id,type:"beat",subtype:"payoff",title:"The marker opens a door",body:b,parent:"s32"},links:[{from:id,to:c.id,label:"pays off"}],what:"New payoff beat",why:"Linked to this setup so it won't be flagged again.",preview:b}]}}
+  if(c&&k==="escapes")return {html:"<h4>Other ways out</h4><p><b>Oduya's marker.</b> Bribe the marshal holding the door. Cheap, and it spends a setup too early.</p><p><b>Vent the other way.</b> Overload the bay's pressure and blow the inner door. Costly: Stephen is hurt for the next three chapters.</p><p>The clamp escape is still the strongest, because the chip was set up in Chapter 1.</p>",sugs:[]};
+  if(c&&k==="earned")return {html:"<p>Yes. The way out uses the chip, set up in Chapter 1 and read in Chapter 2. Readers have seen the tool but not this use for it. That's the sweet spot: surprising, but fair.</p>",sugs:null};
+  if(c&&(k==="draft"||k==="dialogue")){
+    const text=k==="draft"?"The lights in Dock 7 dimmed for half a second, the way they did when the relay buoys handshook. Then they didn't come back up all the way.\n\nStephen's handset chirped once and went quiet. Every channel. Every band. On the far wall, the relay board ran red from top to bottom like something bleeding.":"\"You kept it,\" Kira said, nodding at his pocket.\n\n\"I keep a lot of trash.\"\n\n\"Then read the trash, Stephen.\"";
+    return {html:`<h4>${k==="draft"?"Draft":"Dialogue"}</h4>${text.split(/\n\n/).map(p=>`<p>${esc(p)}</p>`).join("")}<p class="pass">Context used: scene plan, beats, people in this scene, FTL Relay, Halcyon Station, end of the previous scene.</p>`,sugs:[{card:c.id,action:"update_card",field:"prose",text,what:"Add to the scene's prose",why:"Written from the plan, beats, and linked cards.",preview:text}]};
+  }
+  if(c&&k==="check")return {html:`<p>Checked ${esc(c.title)} against linked characters, rules, and earlier chapters.</p>`,sugs:[{card:c.id,action:"flag_issue",what:"Stephen's age isn't felt",why:"His card says 41, but nothing on the page shows it.",preview:"Option: a line about his knees on the third lift.",fix:["body","\n(Note: show his age, 41.)"]}]};
+  if(/antagonist/i.test(t)){const ideas=[["Admiral Haas","Ordered the Titan crackdown. Shutting the relay buries the evidence."],["Daniel himself","He cut the relays. He thinks Earth can't be trusted with what he found."]];
+    return {html:"<h4>Who wants the relay dark?</h4>"+ideas.map(([a,b])=>`<p><b>${a}.</b> ${b}</p>`).join("")+"<p>The second is riskier and more interesting: the rescue becomes a confrontation.</p>",sugs:ideas.map(([a,b])=>({card:"*",action:"create_card",data:{id:nid(),type:"character",subtype:"antagonist idea",title:a,body:b},what:`Candidate: ${a}`,why:"From the brainstorm.",preview:b}))}}
+  if(/subplot/i.test(t)){const ideas=[["Kira's leak","Kira has been feeding the press. If the marshals find out, she's the target, not Stephen."],["The stowaway","A kid from the Titan colony hides aboard. Every choice now has a witness."]];
+    return {html:"<h4>Subplots</h4>"+ideas.map(([a,b])=>`<p><b>${a}.</b> ${b}</p>`).join(""),sugs:ideas.map(([a,b])=>({card:"*",action:"create_card",data:{id:nid(),type:"plot",subtype:"subplot",title:a,body:b},what:`New subplot: ${a}`,why:"From the brainstorm.",preview:b}))}}
+  if(/concord/i.test(t)){const b="Private consortium that built and owns the relay network. Charges by the byte. Lobbies harder than any government. Their stock drops 40% on day one of the blackout.",id=nid();
+    return {html:`<h4>The Concord Board</h4>${P(b)}<p>Good red herring: readers will suspect them first.</p>`,sugs:[{card:"*",action:"create_card",data:{id,type:"setting",subtype:"organization HQ",title:"The Concord Board",body:b},links:[{from:id,to:"ftl",label:"owns"}],what:"New card: The Concord Board",why:"Parsed from your message.",preview:b}]}}
+  if(/trap/i.test(t)){const corner="Kira is locked in the comms office with the marshals questioning everyone who touched a relay terminal. Her login is on the logs.",fails="Lying fails: the logs are timestamped. Running fails: the corridor is sealed.",way="She confesses to a smaller crime, leaking to the press, and gets thrown in a holding cell. Which has a maintenance hatch she mapped two years ago.";
+    return {html:`<h4>Trap and escape</h4><p><b>The corner.</b> ${corner}</p><p><b>Exits that fail.</b> ${fails}</p><p><b>The way out.</b> ${way}</p><p>It works if Kira's leak subplot is set up earlier, so I'd add a setup beat in Chapter 1.</p>`,sugs:[{card:"*",action:"create_card",data:{id:nid(),type:"beat",subtype:"trap-and-escape",title:"Kira's interrogation",corner,fails,way,parent:"s21"},what:"New beat in Station panic",why:"Trap-and-escape beat, filled from the response.",preview:corner}]}}
+  if(/where is kira/i.test(t))return {html:"<p>Kira isn't linked to any scene in Chapter 2. Last seen leaving Dock 7 in Chapter 1. If she's on the station during the panic, she should probably be in Station panic.</p>",sugs:null};
+  return {html:"<p>Noted. In the real version I'd respond properly here and suggest any cards or links it implies.</p>",sugs:null};
+}
+
+/* WIRING */
+function render(){renderRail();renderMain();renderSide()}
+function mobGo(v){$("#app").dataset.mob=v;document.querySelectorAll("#mob button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v))}
+document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const d=b.dataset;
+  if(d.sec)openSec(d.sec);
+  else if(d.card)openCard(d.card);
+  else if(b.id==="flags")openSec("flags");
+  else if(d.d){S.dTab=d.d;renderSide()}
+  else if(d.acc)accept(d.acc);
+  else if(d.rej)reject(d.rej);
+  else if(d.ai)ask("",d.ai);
+  else if(d.q)ask(d.q);
+  else if(d.v)mobGo(d.v);
+  else if(d.mv){const[i,dir]=d.mv.split(":");move(i,+dir)}
+  else if(d.read!==undefined){S.reading=d.read==="1";renderMain()}
+  else if(d.bt){const c=byId(S.card);addVer(c.id,"Beat type changed",{...c});c.subtype=d.bt;render()}
+  else if(d.restore!==undefined){const c=byId(S.card),v=S.versions[c.id][+d.restore];addVer(c.id,"Restored an earlier version",{...c});Object.assign(c,v.snap);toast("Restored");render()}
+  else if(b.id==="send"){const v=$("#say").value.trim();if(v){$("#say").value="";ask(v)}}
+  else if(b.id==="newcard"){$("#say").focus();$("#say").placeholder="Describe it in your own words, and I'll suggest the card…"}
+});
+document.addEventListener("change",e=>{const f=e.target.dataset&&e.target.dataset.f;if(f)save(f,e.target.value)});
+document.addEventListener("keydown",e=>{if(e.target.id==="say"&&e.key==="Enter"&&!e.shiftKey){e.preventDefault();const v=e.target.value.trim();if(v){e.target.value="";ask(v)}}});
+
+/* NOVELS + SETTINGS */
+const NOVELS=[{id:"silence",title:"The Silence",line:"a novel in progress",data:null},{id:"tide",title:"Saltwater Kingdom",line:"just started",data:{cards:[{id:"tp",type:"premise",subtype:"one sentence",title:"Saltwater Kingdom",body:"Two rival households run the last fishing town on a drowning coast, until a wedding forces them under one roof."}],links:[],sugs:[],versions:{}}}];
+let curNovel="silence";
+function switchNovel(id){
+  const cur=NOVELS.find(n=>n.id===curNovel);cur.data={cards:S.cards,links:S.links,sugs:S.sugs,versions:S.versions,threads:S.threads};
+  const n=NOVELS.find(x=>x.id===id);curNovel=id;
+  Object.assign(S,{cards:n.data.cards,links:n.data.links,sugs:n.data.sugs,versions:n.data.versions,threads:n.data.threads||{}});
+  $("#booktitle").textContent=n.title;$("#bookline").textContent=n.line;$("#menu").hidden=true;$("#switch").setAttribute("aria-expanded","false");
+  openSec(n.data.cards.length>1?"chapters":"premise");
+}
+function renderMenu(){$("#menu").innerHTML=NOVELS.map(n=>`<button data-novel="${n.id}" class="${n.id===curNovel?"cur":""}">${esc(n.title)}<small>${n.id===curNovel?"open now":esc(n.line)}</small></button>`).join("")+`<hr><button class="add" id="newnovel">+ New novel</button>`}
+const MODELS={"Anthropic":["claude-opus-5-5","claude-sonnet-5-5","claude-haiku-5-5"],"OpenAI":["gpt-5","gpt-5-mini"],"Google Gemini":["gemini-2.5-pro","gemini-2.5-flash"],"OpenRouter":["(load from OpenRouter)"],"Ollama (local)":["llama3.1:70b","qwen2.5:32b"],"OpenAI-compatible":["(type a model id)"]};
+function fillModels(){const m=MODELS[$("#prov").value];$("#mw").innerHTML=m.map(x=>`<option>${x}</option>`).join("");$("#ms").innerHTML=m.slice().reverse().map(x=>`<option>${x}</option>`).join("");const local=/Ollama|compatible/.test($("#prov").value);$("#baseurlwrap").hidden=!local;$("#keyhelp").textContent=/Ollama/.test($("#prov").value)?"No key needed for a local Ollama server.":"Paste a key from your provider's console.";$("#teststat").textContent=""}
+document.addEventListener("click",e=>{const b=e.target.closest("button");
+  if(b&&b.id==="switch"){renderMenu();const m=$("#menu");m.hidden=!m.hidden;b.setAttribute("aria-expanded",String(!m.hidden));return}
+  if(!e.target.closest("#menu")&&!(b&&b.id==="switch"))$("#menu").hidden=true;
+  if(!b)return;
+  if(b.dataset.novel&&b.dataset.novel!==curNovel)switchNovel(b.dataset.novel);
+  else if(b.id==="newnovel"){$("#menu").hidden=true;$("#nt").value="";$("#np").value="";$("#dlgnew").showModal()}
+  else if(b.dataset.close)$("#"+b.dataset.close).close();
+  else if(b.id==="createnovel"){const t=$("#nt").value.trim()||"Untitled novel",pr=$("#np").value.trim();const id="n"+Date.now();
+    NOVELS.push({id,title:t,line:"just started",data:{cards:pr?[{id:"p"+id,type:"premise",subtype:"one sentence",title:t,body:pr}]:[],links:[],sugs:[],versions:{}}});$("#dlgnew").close();switchNovel(id);toast(`Created ${t}`)}
+  else if(b.id==="opensettings"){fillModels();$("#dlgset").showModal()}
+  else if(b.id==="testconn"){const st=$("#teststat");st.textContent="Testing…";setTimeout(()=>{st.textContent=/Ollama/.test($("#prov").value)||$("#key").value.trim()?"Connected. Both models respond.":"Add an API key first."},700)}
+  else if(b.id==="savesettings"){$("#dlgset").close();toast("Settings saved")}
+});
+document.addEventListener("change",e=>{if(e.target.id==="prov")fillModels()});
+render();
+</script>
+
+</body>
+</html>

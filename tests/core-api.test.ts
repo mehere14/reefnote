@@ -1,0 +1,27 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+process.env.NOVEL_STUDIO_DB=':memory:';
+const db=(await import('../src/lib/server/db')).default;
+const api=await import('../src/routes/api/[...path]/+server');
+async function call(method:string,path:string,data?:any){const url=new URL('http://localhost/api/'+path);const request=new Request(url,{method,...(data?{body:JSON.stringify(data),headers:{'content-type':'application/json'}}:{})});const handler=(api as any)[method];const response=await handler({request,url,params:{path:url.pathname.slice(5)}});return{status:response.status,body:await response.json()};}
+beforeEach(()=>{db.prepare('DELETE FROM novels').run();db.prepare('DELETE FROM fts').run();});
+describe('writing HTTP API',()=>{
+it('creates a novel with premise and reports section counts',async()=>{const n=await call('POST','novels',{title:'Novel',premise:'An expedition arrives.'});expect(n.status).toBe(201);expect(n.body.premiseCard.body).toBe('An expedition arrives.');const overview=await call('GET',`novels/${n.body.novel.id}/overview`);expect(overview.body.sections[0].count).toBe(1);});
+it('supports optimistic writes, paged prose, manual links, version restore',async()=>{const n=(await call('POST','novels',{title:'Novel'})).body.novel;const c=(await call('POST',`novels/${n.id}/cards`,{type:'chapter',title:'One'})).body.card;const s=(await call('POST',`novels/${n.id}/cards`,{type:'scene',title:'Departure',parentId:c.id})).body.card;expect((await call('PUT',`cards/${s.id}/prose`,{text:'One two three.',baseRev:1})).status).toBe(200);expect((await call('GET',`cards/${s.id}/prose?offset=4&limit=3`)).body.text).toBe('two');expect((await call('PUT',`cards/${s.id}/prose`,{text:'lost',baseRev:1})).status).toBe(409);const current=(await call('GET',`cards/${s.id}`)).body.card;const edit=await call('PATCH',`cards/${s.id}`,{title:'Renamed',baseRev:current.rev});expect(edit.body.card.title).toBe('Renamed');expect((await call('POST',`versions/${edit.body.version.id}/restore`,{})).body.card.title).toBe('Departure');expect((await call('POST','links',{fromId:s.id,toId:c.id,label:'advances'})).status).toBe(201);expect((await call('GET',`cards/${s.id}/links`)).body[0].other.id).toBe(c.id);expect((await call('GET',`cards/${c.id}/read`)).body.scenes[0].prose).toBe('One two three.');});
+it('returns useful validation errors for unknown entities and types and permits chapterless scenes',async()=>{expect((await call('GET','cards/missing')).status).toBe(404);const n=(await call('POST','novels',{title:'Novel'})).body.novel;expect((await call('POST',`novels/${n.id}/cards`,{type:'bad'})).status).toBe(400);expect((await call('POST',`novels/${n.id}/cards`,{type:'scene'})).status).toBe(201);});
+it('splits a scene atomically in order and rejects concurrent split without duplicates',async()=>{const n=(await call('POST','novels',{title:'Novel'})).body.novel;const c=(await call('POST',`novels/${n.id}/cards`,{type:'chapter',title:'One'})).body.card;const s=(await call('POST',`novels/${n.id}/cards`,{type:'scene',title:'Departure',parentId:c.id})).body.card;const after=(await call('POST',`novels/${n.id}/cards`,{type:'scene',title:'Next',parentId:c.id})).body.card;await call('PUT',`cards/${s.id}/prose`,{text:'First half. Second half.',baseRev:1});const split=await call('POST',`cards/${s.id}/split`,{cursor:12,baseRev:2});expect(split.status).toBe(201);expect(split.body.prose.text).toBe('First half. ');expect((await call('GET',`cards/${split.body.newCard.id}/prose`)).body.text).toBe('Second half.');expect((await call('GET',`cards/${c.id}`)).body.children.map((card:any)=>card.id)).toEqual([s.id,split.body.newCard.id,after.id]);const conflict=await call('POST',`cards/${s.id}/split`,{cursor:4,baseRev:2});expect(conflict.status).toBe(409);expect((await call('GET',`cards/${c.id}`)).body.children).toHaveLength(3);const versions=(await call('GET',`cards/${s.id}/versions`)).body;const beforeSplit=versions.find((v:any)=>v.note==='Split scene');await call('POST',`versions/${beforeSplit.id}/restore`,{});expect((await call('GET',`cards/${s.id}/prose`)).body.text).toBe('First half. Second half.');});
+
+});
+
+it('searches all card text and nested prose with literal case-insensitive matching',async()=>{
+ const n=(await call('POST','novels',{title:'Search novel'})).body.novel;
+ const chapter=(await call('POST',`novels/${n.id}/cards`,{type:'chapter',title:'Chapter'})).body.card;
+ const scene=(await call('POST',`novels/${n.id}/cards`,{type:'scene',parentId:chapter.id,title:'Hidden scene'})).body.card;
+ await call('PUT',`cards/${scene.id}/prose`,{text:'A rare NEEDLE 100% shines.',baseRev:1});
+ const character=(await call('POST',`novels/${n.id}/cards`,{type:'character',title:'Needle keeper',body:'needle again',aliases:['Silver alias'],fields:{notes:'Secret phrase'}})).body.card;
+ expect((await call('GET',`novels/${n.id}/search?q=needle`)).body.map((c:any)=>c.id).sort()).toEqual([scene.id,character.id].sort());
+ for(const q of ['Silver alias','Secret phrase'])expect((await call('GET',`novels/${n.id}/search?q=${encodeURIComponent(q)}`)).body[0].id).toBe(character.id);
+ expect((await call('GET',`novels/${n.id}/search?q=100%25`)).body[0].id).toBe(scene.id);
+ expect((await call('GET',`novels/${n.id}/search?q=absent`)).body).toEqual([]);
+ const other=(await call('POST','novels',{title:'Other'})).body.novel;
+ expect((await call('GET',`novels/${other.id}/search?q=needle`)).body).toEqual([]);
+});

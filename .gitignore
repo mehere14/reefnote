@@ -1,0 +1,17 @@
+node_modules/
+.svelte-kit/
+build/
+data/
+.env
+.DS_Store
+test-results/
+playwright-report/
+.env.*
+!.env.example
+*.key
+*.db
+*.db-shm
+*.db-wal
+*.log
+.claude/
+config/tailscale.json

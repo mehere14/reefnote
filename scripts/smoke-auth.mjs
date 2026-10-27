@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+const base = 'http://127.0.0.1:4320';
+const denied = await fetch(`${base}/api/novels`);
+assert.equal(denied.status, 401);
+const wrong = await fetch(`${base}/login`, {method:'POST',headers:{origin:base,'content-type':'application/x-www-form-urlencoded'},body:'password=wrong',redirect:'manual'});
+assert.equal(wrong.status,401);
+const login = await fetch(`${base}/login`, {method:'POST',headers:{origin:base,'content-type':'application/x-www-form-urlencoded'},body:'password=local-test-password',redirect:'manual'});
+assert.equal(login.status,303);
+const cookie = login.headers.get('set-cookie');
+assert.ok(cookie?.includes('HttpOnly'));
+const allowed = await fetch(`${base}/api/novels`,{headers:{cookie:cookie.split(';')[0]}});
+assert.equal(allowed.status,200);
+const crossOrigin = await fetch(`${base}/api/novels`,{method:'POST',headers:{origin:'http://unrelated.invalid',cookie:cookie.split(';')[0],'content-type':'application/json'},body:JSON.stringify({title:'should not exist'})});
+assert.equal(crossOrigin.status,403);
+console.log('Auth smoke passed: unauthorized, wrong password, session login, authenticated API, and cross-origin rejection.');

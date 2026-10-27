@@ -1,0 +1,2 @@
+export const tokens=(text:string)=>Math.ceil(text.length/3.6);
+export function chunkProse(text:string,maxTokens=6000,overlapTokens=500){const size=Math.floor(maxTokens*3.6), overlap=Math.floor(overlapTokens*3.6);const chunks:Array<{text:string,offset:number}>=[];let offset=0;while(offset<text.length){let end=Math.min(offset+size,text.length);if(end<text.length){const boundary=text.lastIndexOf('\n\n',end);if(boundary>offset+size/2)end=boundary+2;}chunks.push({text:text.slice(offset,end),offset});if(end===text.length)break;offset=Math.max(offset+1,end-overlap);}return chunks;}
