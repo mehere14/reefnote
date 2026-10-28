@@ -1,3 +1,4 @@
+import {enqueue,registerJob} from '../queue';
 import db from '../db';
 import {ulid} from 'ulid';
 /** All offsets are UTF-16 code units, matching the editor and String.slice. */
@@ -24,6 +25,20 @@ export function proseChanged(id:string){
  db.prepare("UPDATE extractions SET status='stale' WHERE element_id=? AND status='pending'").run(id);
  db.prepare("UPDATE elements SET prose_state='edited',version=version+1,summary='',review_reason=CASE WHEN prose_state='approved' THEN 'Approved prose was edited' ELSE review_reason END,status=CASE WHEN prose_state='approved' THEN 'needs_review' ELSE status END WHERE scene_id=?").run(id);
  rebuildMentions(id);
+ enqueue('scene-summary',`scene-summary:${id}`,{id},2000);
 }
 export function elementSnapshot(id:string){const element=db.prepare('SELECT * FROM elements WHERE scene_id=?').get(id);return element?{element,cards:db.prepare('SELECT * FROM element_cards WHERE element_id=?').all(id)}:undefined;}
 export function restoreElementSnapshot(id:string,state:any){if(!state?.element)return;const old=db.prepare('SELECT version FROM elements WHERE scene_id=?').get(id) as any;const e=state.element;const subplot=e.subplot_id&&db.prepare('SELECT id FROM subplots WHERE id=?').get(e.subplot_id)?e.subplot_id:null;const tp=e.turning_point_id&&db.prepare('SELECT id FROM turning_points WHERE id=? AND subplot_id=?').get(e.turning_point_id,subplot)?e.turning_point_id:null;db.prepare('INSERT OR IGNORE INTO elements(scene_id) VALUES(?)').run(id);db.prepare("UPDATE elements SET subplot_id=?,turning_point_id=?,position=?,purpose=?,target_length=?,time_marker=?,summary=?,status='needs_review',prose_state=?,version=?,review_reason='Restored from history' WHERE scene_id=?").run(subplot,tp,e.position,e.purpose,e.target_length,e.time_marker,e.summary,e.prose_state,(old?.version||0)+1,id);db.prepare('DELETE FROM element_cards WHERE element_id=?').run(id);for(const link of state.cards||[]){if(db.prepare('SELECT id FROM cards WHERE id=?').get(link.card_id))db.prepare('INSERT INTO element_cards(element_id,card_id,role,secret_action) VALUES(?,?,?,?)').run(id,link.card_id,link.role,link.secret_action);}rebuildMentions(id);}
+
+registerJob('scene-summary',async({id})=>{
+ const row=db.prepare('SELECT e.summary,p.text FROM elements e JOIN scene_prose p ON p.scene_id=e.scene_id WHERE e.scene_id=?').get(id) as any;
+ if(!row||row.summary.trim()||!row.text.trim())return;
+ const {getConfig}=await import('../ai/settings');
+ if(!getConfig())return;
+ const {summarize}=await import('./generation');
+ await summarize(id);
+});
+export function backfillSceneSummaries(){
+ for(const row of db.prepare("SELECT e.scene_id FROM elements e JOIN scene_prose p ON p.scene_id=e.scene_id WHERE trim(e.summary)='' AND trim(p.text)!=''").all() as any[])
+ enqueue('scene-summary',`scene-summary:${row.scene_id}`,{id:row.scene_id},2000);
+}

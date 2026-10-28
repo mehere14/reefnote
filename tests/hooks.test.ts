@@ -4,6 +4,7 @@ vi.mock('$env/dynamic/private', () => ({env:{NOVEL_STUDIO_PASSWORD:'test-passwor
 vi.mock('$lib/server/db', () => ({default:{}}));
 vi.mock('$lib/server/crypto', () => ({secretKey:() => new Uint8Array(32)}));
 vi.mock('$lib/server/queue', () => ({startQueue:() => {}}));
+vi.mock('$lib/server/subplots/indexing', () => ({backfillSceneSummaries:() => {}}));
 import {handle} from '../src/hooks.server';
 function event(path:string, init:RequestInit={}) {
  const url=new URL(path,'http://127.0.0.1:4317');

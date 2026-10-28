@@ -12,6 +12,8 @@ function initialize() {
     secretKey();
     const {startQueue} = await import('$lib/server/queue');
     startQueue();
+    const {backfillSceneSummaries}=await import('$lib/server/subplots/indexing');
+    backfillSceneSummaries();
   })();
 }
 const attempts = new Map<string, {count: number; until: number}>();
