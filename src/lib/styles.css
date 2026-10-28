@@ -44,7 +44,11 @@ button{font:inherit;cursor:pointer;color:inherit}
 button:disabled{opacity:.45;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
-::selection{background:var(--accent-soft)}
+::selection{background:var(--accent);color:var(--accent-ink)}
+input,textarea,[contenteditable]{caret-color:var(--ink)}
+/* Override CodeMirror's default black caret in both theme modes. */
+.prose-editor .cm-content{caret-color:var(--ink)}
+.prose-editor .cm-cursor,.prose-editor .cm-dropCursor{border-left-color:var(--ink)}
 details>summary{cursor:pointer;color:var(--dim);font-weight:600;font-size:12.5px}
 details>summary:hover{color:var(--accent)}
 
