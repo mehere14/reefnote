@@ -466,3 +466,11 @@ dialog::backdrop{background:var(--scrim)}
   .titlein{font-size:28px}
 }
 @media (prefers-reduced-motion:reduce){.toast,.card{transition:none}.card:hover{transform:none}}
+
+.link-sentence{display:flex;flex-direction:column;gap:12px;margin-top:18px}
+.link-endpoint{padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-s);background:var(--soft);min-width:0}
+.dlg .link-card-kind{display:block;margin:0 0 6px;color:var(--dim);font:600 12px var(--ui);text-transform:uppercase;letter-spacing:.06em}
+.link-card-title{display:block;font:500 22px var(--serif);overflow-wrap:anywhere}
+.link-predicate{padding:0 16px;border-left:2px solid var(--accent);margin-left:16px}
+.dlg .link-predicate label{margin-top:0}
+.link-predicate .chip{margin-top:10px}
