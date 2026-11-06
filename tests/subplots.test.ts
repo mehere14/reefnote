@@ -74,3 +74,89 @@ it('backfills missing summaries and refreshes them after prose saves',async()=>{
   expect(s.getElement(id).summary).toBe('Joss hides the logs.');
  }finally{vi.useRealTimers();}
 });
+
+it('restores every plot content field and keeps a restorable pre-restore version',()=>{
+ let p=s.createSubplot('n',{title:'Original',premise:'Old premise',theme:'Old theme',start_state:'Old start',end_state:'Old end'});
+ const original=s.listPlotVersions('subplots',p.id)[0] as any;
+ p=s.editSubplot(p.id,{title:'Changed',premise:'New premise',theme:'New theme',start_state:'New start',end_state:'New end',baseRev:p.rev});
+ const changedRev=p.rev;
+ p=s.restorePlotVersion('subplots',p.id,original.id,p.rev);
+ expect(p).toMatchObject({title:'Original',premise:'Old premise',theme:'Old theme',start_state:'Old start',end_state:'Old end'});
+ expect(p.rev).toBeGreaterThan(changedRev);
+ const backup=s.listPlotVersions('subplots',p.id)[0] as any;
+ expect(backup).toMatchObject({note:'Before restoring version',source:'restore'});
+ p=s.restorePlotVersion('subplots',p.id,backup.id,p.rev);
+ expect(p).toMatchObject({title:'Changed',premise:'New premise',theme:'New theme',start_state:'New start',end_state:'New end'});
+ const source=db.prepare('SELECT card_id FROM plot_sources WHERE plot_id=?').get(p.id) as any;
+ expect(c.getCard(source.card_id)).toMatchObject({title:'Changed',body:'New premise'});
+});
+it('restores turning point text, flags dependent scenes and rejects stale or unrelated restores',()=>{
+ const {p,t,es}=fixture();
+ const original=s.listPlotVersions('turning-points',t.id)[0] as any;
+ let tp=s.editTP(t.id,{text:'A different discovery',baseRev:s.getTP(t.id).rev});
+ tp=s.approve('turning_point',t.id,tp.rev);
+ expect(()=>s.restorePlotVersion('turning-points',t.id,original.id,tp.rev-1)).toThrow('changed');
+ const other=s.addTP(p.id,{text:'Unrelated'});
+ expect(()=>s.restorePlotVersion('turning-points',other.id,original.id,other.rev)).toThrow('Version not found');
+ tp=s.restorePlotVersion('turning-points',t.id,original.id,tp.rev);
+ expect(tp.text).toBe(t.text);expect(tp.status).toBe('draft');
+ expect(s.getElement(es[0].scene_id).status).toBe('needs_review');
+ expect(s.getElement(es[0].scene_id).prose.text).toBe(es[0].prose.text);
+ const backup=s.listPlotVersions('turning-points',t.id)[0] as any;
+ expect(s.restorePlotVersion('turning-points',t.id,backup.id,tp.rev).text).toBe('A different discovery');
+});
+it('baselines existing plots and turning points once without rewriting content',()=>{
+ const {p,t}=fixture();db.prepare('DELETE FROM plot_versions').run();
+ const before=s.outline(p.id);migrateSubplots(db);migrateSubplots(db);
+ expect(s.outline(p.id)).toEqual(before);
+ expect(s.listPlotVersions('subplots',p.id)).toHaveLength(1);
+ expect(s.listPlotVersions('turning-points',t.id)).toHaveLength(1);
+ expect(s.listPlotVersions('turning-points',t.id)[0]).toMatchObject({note:'History enabled'});
+});
+it('exposes plot and turning point history through scoped APIs',async()=>{
+ const {p,t}=fixture();
+ const event=(path:string,method='GET',body?:any)=>({params:{path},request:new Request('http://localhost/api/'+path,{method,...body?{body:JSON.stringify(body)}:{}})});
+ const response=await handleSubplots(event(`subplots/${p.id}/versions`));
+ expect(response!.status).toBe(200);const versions=await response!.json();
+ const edited=s.editSubplot(p.id,{theme:'Changed theme',baseRev:s.getSubplot(p.id).rev});
+ const restored=await handleSubplots(event(`subplots/${p.id}/versions`,'POST',{versionId:versions[0].id,baseRev:edited.rev}));
+ expect((await restored!.json()).theme).toBe(p.theme);
+ const tpResponse=await handleSubplots(event(`turning-points/${t.id}/versions`));
+ expect((await tpResponse!.json()).length).toBeGreaterThan(0);
+});
+
+ it('plot chat includes complete saved prose in plot order and excludes other plots',async()=>{
+ const {p,es}=fixture();
+ const prose='Twelve syndicates held the charter. '+ 'Full passage. '.repeat(18000)+'Only eleven syndicates attended.';
+ c.saveProse(es[0].scene_id,{text:prose,baseRev:es[0].prose.rev});
+ let other=s.createSubplot('n',{title:'Other plot',premise:'Elsewhere.'});other=s.approve('subplot',other.id,other.rev);
+ const outsider=s.addElement(other.id,{title:'Unrelated scene'});c.saveProse(outsider.scene_id,{text:'Private unrelated passage.',baseRev:1});
+ const {assemble}=await import('../src/lib/server/ai/context');
+ const config={provider:'openai' as const,modelWrite:'mock',modelStruct:'mock'};
+ for(const flow of ['card_chat','ask','check']){
+ const context=assemble('n',p.id,flow,'How many syndicates?',config);
+ const pack=JSON.parse(context.text);
+ expect(pack.scenes.map((scene:any)=>scene.scene_id)).toEqual(es.map(e=>e.scene_id));
+ expect(pack.scenes[0].prose).toBe(prose);
+ expect(pack.scenes[1].prose).toBe(es[1].prose.text);
+ expect(context.text).not.toContain('Private unrelated passage.');
+ expect(context.manifest.filter(item=>item.form==='plot scene plan and full prose')).toHaveLength(3);
+ }
+ const disabled=assemble('n',p.id,'card_chat','Hello',config,1,false);
+ expect(disabled.text).not.toContain('Twelve syndicates');
+ });
+it('shares full deduplicated plot references with precise local sources and preserves independent links',async()=>{
+ const {p,t,j,es}=fixture();
+ s.setReferenceLink('subplots',p.id,{card_id:j.id});s.setReferenceLink('turning-points',t.id,{card_id:j.id});
+ const broad=c.createCard('n',{type:'rule',title:'Gravity',body:'Full plot-wide fact',fields:{constraint:'Always applies'}});
+ s.setReferenceLink('subplots',p.id,{card_id:broad.id});
+ const pool=s.plotCardPool(p.id);expect(pool.filter(x=>x.id===j.id)).toHaveLength(1);expect(pool.find(x=>x.id===j.id).sources).toHaveLength(5);
+ const scene=g.proseContext(es[0].scene_id);expect(scene.cards).toContain('Full plot-wide fact');expect(scene.cards).toContain('Always applies');expect(scene.turning_point_linked_cards).toContainEqual({id:j.id,title:j.title});expect(scene.scene_linked_cards).toContainEqual({id:j.id,title:j.title});
+ const {assemble}=await import('../src/lib/server/ai/context');const config:any={modelWrite:'test',budget:60000};
+ for(const scope of [p.id,t.id,es[0].scene_id]){const pack=assemble('n',scope,'card_chat','Help',config);expect(pack.text).toContain('Full plot-wide fact');expect(pack.manifest.some(x=>x.card_id===broad.id)).toBe(true);}
+ const tp=JSON.parse(assemble('n',t.id,'card_chat','Help',config).text);expect(tp.current_turning_point.id).toBe(t.id);expect(tp.turning_point_linked_cards).toContainEqual({id:j.id,title:j.title});
+ s.setReferenceLink('subplots',p.id,{card_id:j.id},true);expect(s.plotCardPool(p.id).find(x=>x.id===j.id).sources).toHaveLength(4);
+ s.deleteTP(t.id,s.getTP(t.id).rev);expect(s.plotCardPool(p.id).find(x=>x.id===j.id).sources.every((x:any)=>x.kind==='scene')).toBe(true);
+ db.prepare('INSERT INTO novels(id,title,created_at,updated_at) VALUES(?,?,?,?)').run('other','Other',1,1);const foreign=c.createCard('other',{type:'character',title:'Foreign'});expect(()=>s.setReferenceLink('subplots',p.id,{card_id:foreign.id})).toThrow('in this novel');
+});
+it('preserves plot and turning point links when merging reference cards',()=>{const {p,t,j,m}=fixture();s.setReferenceLink('subplots',p.id,{card_id:j.id});s.setReferenceLink('turning-points',t.id,{card_id:j.id});s.mergeCards(j.id,m.id);const merged=s.plotCardPool(p.id).find(x=>x.id===m.id);expect(merged.sources.some((x:any)=>x.kind==='plot')).toBe(true);expect(merged.sources.some((x:any)=>x.kind==='turning_point')).toBe(true);});

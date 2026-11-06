@@ -142,3 +142,50 @@ test('chapter chat refreshes later characters, scene links, and reserves earlier
  const restricted=assemble(n,chapter.id,'card_chat','Rewrite',config,1,true,true);
  assert(!restricted.manifest.some(x=>x.card_id===character.id));assert(restricted.text.includes('Rename Nyx-7 to Amissa.'));
 });
+
+test('new chats recover orphaned responses while preserving live pending turns',async()=>{
+ const n=novel();
+ const settings=await import('../src/lib/server/ai/settings');
+ settings.saveConfig({provider:'openai',modelWrite:'mock',modelStruct:'mock'});
+ const request=(path:string,method='GET',body?:any)=>api.handleAI({url:new URL('http://localhost/api/'+path),request:new Request('http://localhost/api/'+path,{method,...(body?{body:JSON.stringify(body)}:{})})});
+ const {turnId}=await(await request(`novels/${n}/turns`,'POST',{scope:'characters',flow:'ask',text:'Hello'})).json();
+ assert.equal((await request(`novels/${n}/chats`,'POST',{scope:'characters'})).status,409);
+ // A request created before a restart has no corresponding in-memory stream.
+ db.prepare("INSERT INTO turns(id,novel_id,scope,chat_id,flow,status,created_at) SELECT ?,novel_id,scope,chat_id,flow,'structuring',created_at FROM turns WHERE id=?").run('orphan-'+n,turnId);
+ await request(`turns/${'orphan-'+n}`);
+ assert.equal(db.prepare('SELECT status FROM turns WHERE id=?').get('orphan-'+n).status,'error');
+ // A response whose client never connected must not block the scope forever.
+ db.prepare('UPDATE turns SET created_at=? WHERE id=?').run(Date.now()-61000,turnId);
+ assert.equal((await request(`novels/${n}/chats`,'POST',{scope:'characters'})).status,201);
+ const old=db.prepare('SELECT * FROM turns WHERE id=?').get(turnId);
+ assert.equal(old.status,'error');assert(old.finished_at);
+ const output=await(await request(`turns/${turnId}/stream`)).text();
+ assert(output.includes('event: error'));
+ assert(!output.includes('event: done'));
+ assert.equal(db.prepare('SELECT count(*) count FROM messages WHERE turn_id=?').get(turnId).count,1);
+});
+
+test('attachments persist in chat and reach the provider on subsequent turns',async()=>{
+ const n=novel(),card=core.createCard(n,{type:'character',title:'Research'});
+ const settings=await import('../src/lib/server/ai/settings');settings.saveConfig({provider:'openai',modelWrite:'mock',modelStruct:'mock'});
+ const seen:any[]=[];api.setProviderFactory(()=>({async *stream(o:any){seen.push(o.messages[0]);yield 'Read the references';},async structured(){return {suggestions:[]};},async test(){return {ok:true,msg:'OK'};},async listModels(){return [];}}));
+ const request=(path:string,method='GET',body?:any)=>api.handleAI({url:new URL('http://localhost/api/'+path),request:new Request('http://localhost/api/'+path,{method,...(body?{body:JSON.stringify(body)}:{})})});
+ const attachments=[{name:'notes.md',data:Buffer.from('Paper research').toString('base64')},{name:'photo.png',data:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='}];
+ for(const extra of [{attachments,text:'Read these'},{text:'What does the photo show?'}]){
+  const response=await request(`novels/${n}/turns`,'POST',{scope:card.id,flow:'card_chat',includeCardContext:false,...extra});assert.equal(response.status,201);const turn=await response.json();await(await request(`turns/${turn.turnId}/stream`)).text();
+ }
+ for(const message of seen){assert(message.content.includes('Paper research'));assert.equal(message.images.length,1);}
+ const messages=await(await request(`novels/${n}/messages?scope=${card.id}`)).json();assert.equal(JSON.parse(messages[0].attachments).length,2);
+});
+
+test('image adapters preserve native multimodal payloads for each provider',async()=>{
+ const original=globalThis.fetch;const {createProvider}=await import('../src/lib/server/ai/providers');
+ try{for(const kind of ['openai','anthropic','google']){
+  let body:any;globalThis.fetch=async(_url:any,opts:any)=>{body=JSON.parse(opts.body);return new Response('data: [DONE]\n');};
+  const provider=createProvider({provider:kind,modelWrite:'mock',modelStruct:'mock'});
+  for await(const _ of provider.stream({model:'mock',system:'',messages:[{role:'user',content:'Look',images:[{name:'photo.png',mime:'image/png',data:'aGVsbG8='}]}],maxTokens:10,temperature:0})){}
+  if(kind==='openai')assert.equal(body.messages[1].content[1].image_url.url,'data:image/png;base64,aGVsbG8=');
+  if(kind==='anthropic')assert.equal(body.messages[0].content[0].source.media_type,'image/png');
+  if(kind==='google')assert.equal(body.contents[0].parts[1].inline_data.data,'aGVsbG8=');
+ }}finally{globalThis.fetch=original;}
+});

@@ -126,6 +126,8 @@ details>summary:hover{color:var(--accent)}
 .saving{font:12px var(--ui);color:var(--dim);margin-top:6px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+/* Keep action rows clear of the editor, fields, or other content below them. */
+.actions:not(:last-child){padding-bottom:14px}
 
 /* Index cards */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
@@ -243,6 +245,8 @@ details>summary:hover{color:var(--accent)}
 .thread:empty{display:none}
 .msg{max-width:680px;margin:0 0 16px}
 .msg.me{margin-left:auto;width:fit-content;max-width:460px;background:var(--accent);color:var(--accent-ink);padding:9px 14px;border-radius:14px 14px 3px 14px}
+/* Reverse the bubble colors so selected text stays visible in either theme. */
+.msg.me::selection,.msg.me ::selection{background:var(--accent-ink);color:var(--accent)}
 .msg.ai{font:15.5px/1.7 var(--serif);white-space:normal}
 .msg.ai p{margin:0 0 8px}
 .msg.ai .actions{margin-top:8px}
@@ -335,14 +339,14 @@ dialog::backdrop{background:var(--scrim)}
 
 /* ─── Workspace layout: contents rail · editor · co-writer ─────────────── */
 .workspace{grid-template-columns:240px minmax(0,1fr);position:relative}
-.workspace .main{display:grid;grid-template-columns:minmax(320px,1fr) minmax(300px,var(--chat-width,420px));overflow:hidden}
+.workspace .main{display:grid;grid-template-columns:minmax(320px,1fr) minmax(300px,var(--chat-width,420px));grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 .editor-pane{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0}
-.workspace .editor-pane{overflow:hidden}
+.workspace .editor-pane{grid-column:1;grid-row:2;overflow:hidden}
 .workspace .head{padding:16px 28px 10px}
 .workspace .head .toolbar{margin:8px 0 0}
 .workspace .head .kindpill{display:none}
 .workspace .scroll{padding:8px 28px 40px}
-.workspace-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--paper)}
+.workspace-toolbar{grid-column:1 / -1;grid-row:1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--paper)}
 .workspace-toolbar .toggle{border-color:transparent;background:none;color:var(--dim)}
 .workspace-toolbar .toggle[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
 .tb-sep{width:1px;height:20px;background:var(--line);margin:0 4px}
@@ -368,7 +372,7 @@ dialog::backdrop{background:var(--scrim)}
 .scene-reorder button{border:0;background:transparent;min-width:24px;min-height:22px;font-size:12px;color:var(--dim)}
 .scene-reorder button:hover:not(:disabled){color:var(--accent)}
 .workspace .rail>.railfoot{display:flex}
-.workspace .dock{min-height:0;height:100%!important;max-height:100%!important;border-top:0;border-left:1px solid var(--line);grid-column:2;grid-row:1}
+.workspace .dock{min-height:0;height:100%!important;max-height:100%!important;border-top:0;border-left:1px solid var(--line);grid-column:2;grid-row:2}
 .workspace .dock>.chat-divider,.workspace .chat-mobile-toolbar{display:none}
 .workspace .thread{flex:1;min-height:80px;padding:16px 22px;scrollbar-gutter:stable}
 .workspace .thread:empty{display:block}
@@ -397,6 +401,10 @@ dialog::backdrop{background:var(--scrim)}
 .workspace.nav-collapsed .rail{visibility:hidden;overflow:hidden}
 .workspace.chat-collapsed .main{grid-template-columns:minmax(0,1fr)}
 .workspace.chat-collapsed .dock{display:none}
+.workspace.main-collapsed .main{grid-template-columns:minmax(0,1fr)}
+.workspace.main-collapsed .editor-pane{display:none}
+.workspace.main-collapsed .dock{grid-column:1;border-left:0}
+.workspace.main-collapsed .workspace-chat-divider{display:none}
 .workspace .cm-scroller{max-height:none}
 .workspace .grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 .workspace .card .snip{overflow-wrap:anywhere}
@@ -449,6 +457,7 @@ dialog::backdrop{background:var(--scrim)}
   .workspace .main{display:none;grid-column:1;grid-row:1;min-width:0}
   .workspace[data-mob=main] .main,.workspace[data-mob=chat] .main{display:flex}
   .workspace[data-mob=main] .editor-pane{display:flex}
+  .workspace[data-mob=chat] .workspace-toolbar{display:none}
   .workspace[data-mob=main] .dock{display:none}
   .workspace[data-mob=chat] .editor-pane{display:none}
   .workspace[data-mob=chat] .dock{display:flex;border-left:0;flex:1}
@@ -459,7 +468,7 @@ dialog::backdrop{background:var(--scrim)}
   .workspace[data-mob=rail] .rail{display:flex}
   .workspace .mob{grid-column:1;grid-row:2}
   .workspace.nav-collapsed{grid-template-columns:minmax(0,1fr)}
-  .workspace-toolbar>button:nth-child(-n+2),.workspace-toolbar .tb-sep{display:none}
+  .workspace-toolbar>button:nth-child(-n+3),.workspace-toolbar .tb-sep{display:none}
   .workspace .head,.workspace .scroll{padding-left:16px;padding-right:16px}
   .review-columns{grid-template-columns:1fr}
   .workspace .pinned-reference{max-height:38%}

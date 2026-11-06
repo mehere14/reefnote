@@ -87,5 +87,6 @@ db.exec(`CREATE TABLE IF NOT EXISTS pinned_messages (
 migrateSubplots(db);
 migratePlots(db);
 export const dataDirectory = path === ':memory:' ? resolve(process.env.DATA_DIR || 'data') : dirname(resolve(path));
+if(!(db.prepare('PRAGMA table_info(messages)').all() as Array<{name:string}>).some(x=>x.name==='attachments'))db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'");
 export default db;
 export { db };

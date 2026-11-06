@@ -3,7 +3,7 @@
  export let request:any;
  $: sent=JSON.parse(request.prompt);
  $: context=sent.context||{};
- const labels:Record<string,string>={subplot:'Plot premise and turning points',current_turning_point:'Current turning point and sibling summaries',element:'Scene plan',plot_scenes:'All plot scenes · full prose in story order',continuity_instruction:'Continuity instructions',previous:'Previous scene',next:'Next scene plan',cards:'Linked reference cards',linked_elements:'Linked scene summaries',style:'Writing style'};
+ const labels:Record<string,string>={subplot:'Plot premise and turning points',current_turning_point:'Current turning point and sibling summaries',element:'Scene plan',plot_scenes:'All plot scenes · full prose in story order',continuity_instruction:'Continuity instructions',previous:'Previous scene',next:'Next scene plan',cards:'Full plot reference cards',plot_linked_cards:'Direct plot links',turning_point_linked_cards:'Direct turning point links',scene_linked_cards:'Direct scene links',card_context_instruction:'Reference card instructions',linked_elements:'Linked scene summaries',style:'Writing style'};
  function readable(value:any):string{if(typeof value==='string'){try{return JSON.stringify(JSON.parse(value),null,2);}catch{return value;}}return JSON.stringify(value,null,2);}
 </script>
 <div class="request-context">

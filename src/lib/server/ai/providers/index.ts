@@ -3,7 +3,8 @@ import db from '../../db';
 import {ulid} from 'ulid';
 import type { ZodType } from 'zod';
 export type Config={provider:string;apiKey?:string;baseUrl?:string;modelWrite:string;modelStruct:string;styleBudget?:number;budget?:number;temps?:{write?:number;struct?:number};contextWindow?:number};
-export type Options={model:string;system:string;messages:Array<{role:string;content:string}>;maxTokens:number;temperature:number;signal?:AbortSignal};
+export type ImageInput={name:string;mime:string;data:string};
+export type Options={model:string;system:string;messages:Array<{role:string;content:string;images?:ImageInput[]}>;maxTokens:number;temperature:number;signal?:AbortSignal};
 export interface Provider{listModels():Promise<Array<{id:string;contextWindow?:number}>>;stream(opts:Options):AsyncIterable<string>;structured<T>(opts:{model:string;system:string;prompt:string;schema:ZodType<T>;maxTokens:number;signal?:AbortSignal}):Promise<T>;test(model:string):Promise<{ok:boolean;msg:string}>;}
 export function providerError(e:any){const text=String(e?.message||e);if(/401|403|api.?key|unauthorized/i.test(text))return 'The provider rejected the API key. Check it in Settings.';if(/429|rate.?limit/i.test(text))return 'The provider is rate-limiting requests. Try again in a minute.';if(/context|token.*limit/i.test(text))return 'The request exceeds the model context window.';if(/fetch|network|ENOTFOUND|ECONN/i.test(text))return "Couldn't reach the provider.";return text;}
 export function createProvider(config:Config):Provider{
@@ -24,10 +25,10 @@ export function createProvider(config:Config):Provider{
  async function* stream(o:Options){
   const started=Date.now(),usage:{input:number|null;output:number|null}={input:null,output:null};let status='error';
   try{
-  let path='/chat/completions';let body:any={model:o.model,messages:[{role:'system',content:o.system},...o.messages],max_tokens:o.maxTokens,temperature:o.temperature,stream:true};
+  let path='/chat/completions';let body:any={model:o.model,messages:[{role:'system',content:o.system},...o.messages.map(m=>({role:m.role,content:m.images?.length?[{type:'text',text:m.content},...m.images.map(i=>({type:'image_url',image_url:{url:`data:${i.mime};base64,${i.data}`}}))]:m.content}))],max_tokens:o.maxTokens,temperature:o.temperature,stream:true};
   if(kind==='openai'&&/^(o[134](?:-|$)|gpt-5(?:\.|-|$))/.test(o.model)){delete body.max_tokens;delete body.temperature;body.max_completion_tokens=o.maxTokens;}
-  if(kind==='anthropic'){path='/messages';body={model:o.model,system:o.system,messages:o.messages,max_tokens:o.maxTokens,temperature:Math.min(1,o.temperature),stream:true};}
-  if(kind==='google'){path=`/models/${encodeURIComponent(o.model.replace(/^models\//,''))}:streamGenerateContent?alt=sse`;body={systemInstruction:{parts:[{text:o.system}]},contents:o.messages.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),generationConfig:{maxOutputTokens:o.maxTokens,temperature:o.temperature}};}
+  if(kind==='anthropic'){path='/messages';body={model:o.model,system:o.system,messages:o.messages.map(m=>({role:m.role,content:m.images?.length?[...m.images.map(i=>({type:'image',source:{type:'base64',media_type:i.mime,data:i.data}})),{type:'text',text:m.content}]:m.content})),max_tokens:o.maxTokens,temperature:Math.min(1,o.temperature),stream:true};}
+  if(kind==='google'){path=`/models/${encodeURIComponent(o.model.replace(/^models\//,''))}:streamGenerateContent?alt=sse`;body={systemInstruction:{parts:[{text:o.system}]},contents:o.messages.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content},...(m.images||[]).map(i=>({inline_data:{mime_type:i.mime,data:i.data}}))]})),generationConfig:{maxOutputTokens:o.maxTokens,temperature:o.temperature}};}
   if(!['anthropic','google'].includes(kind))body.stream_options={include_usage:true};
   const r=await request(path,body,o.signal);if(!r.body)throw new Error('Provider returned no response body');const reader=r.body.getReader(),decoder=new TextDecoder();let pending='';
   try{while(true){const {value,done}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true});let index;while((index=pending.indexOf('\n'))>=0){const line=pending.slice(0,index);pending=pending.slice(index+1);const delta=parseLine(line,usage);if(delta)yield delta;}}pending+=decoder.decode();const delta=parseLine(pending,usage);if(delta)yield delta;}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
