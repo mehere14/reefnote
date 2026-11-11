@@ -14,6 +14,8 @@
   --radius-s:7px; --radius:10px;
   --serif:"Literata Variable",Literata,Georgia,serif; --ui:"Figtree Variable",Figtree,system-ui,-apple-system,"Segoe UI",sans-serif;
   --lab-opens:#2D6FA8; --lab-advances:#6B4FBF; --lab-explores:#A86E10;
+  /* Lane grid thread colours (§lane view): a small dot and a thin rule, never card fills. */
+  --lane-1:#0E6964; --lane-2:#2D6FA8; --lane-3:#6B4FBF; --lane-4:#A86E10; --lane-5:#B4486A; --lane-6:#3F7D3A; --lane-7:#8A5A44; --lane-8:#4F6B78;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;
   --page:#0F1D1E; --paper:#152627; --soft:#1C2F30; --ink:#E3EEEC; --dim:#93ABA9; --line:#2A4143;
@@ -23,6 +25,7 @@
   --ok:#7CC49A; --ok-soft:#1C3428; --danger:#E58A7E;
   --del-bg:#4A2622; --ins-bg:#1F3A27; --scrim:rgba(0,0,0,.55);
   --lab-opens:#7FB5E3; --lab-advances:#B7A2F0; --lab-explores:#E2B160;
+  --lane-1:#5CC2B8; --lane-2:#7FB5E3; --lane-3:#B7A2F0; --lane-4:#E2B160; --lane-5:#EE93AE; --lane-6:#93CF8C; --lane-7:#D2A58F; --lane-8:#A3BCC7;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 18px -12px rgba(0,0,0,.6); --shadow-lg:0 30px 60px -20px rgba(0,0,0,.7)}}
 :root[data-theme="dark"]{color-scheme:dark;
   --page:#0F1D1E; --paper:#152627; --soft:#1C2F30; --ink:#E3EEEC; --dim:#93ABA9; --line:#2A4143;
@@ -32,6 +35,7 @@
   --ok:#7CC49A; --ok-soft:#1C3428; --danger:#E58A7E;
   --del-bg:#4A2622; --ins-bg:#1F3A27; --scrim:rgba(0,0,0,.55);
   --lab-opens:#7FB5E3; --lab-advances:#B7A2F0; --lab-explores:#E2B160;
+  --lane-1:#5CC2B8; --lane-2:#7FB5E3; --lane-3:#B7A2F0; --lane-4:#E2B160; --lane-5:#EE93AE; --lane-6:#93CF8C; --lane-7:#D2A58F; --lane-8:#A3BCC7;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 18px -12px rgba(0,0,0,.6); --shadow-lg:0 30px 60px -20px rgba(0,0,0,.7)}
 :root[data-theme="light"]{color-scheme:light}
 

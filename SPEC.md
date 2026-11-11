@@ -147,7 +147,9 @@ The book has eight sections in this fixed order (`SECTIONS` in `core.ts`). Each 
 | 5 | `world` | World & rules | `setting`, `rule`, `object`, `event` | `setting` may nest (galaxy → planet → city) |
 | 6 | `styles` | Voice & Style | `style` (subtype `book` or `preset`) | — |
 | 7 | `plots` | Grand plot & subplots | `plot`, `secret`, `theme`, `question` | Plots are developed in subplot mode (§16) |
-| 8 | `chapters` | Chapters | `chapter` | `scene` (child of chapter), `beat` (child of scene) |
+| 8 | `chapters` | Chapters | `chapter` | `scene` (child of chapter, or chapterless), `beat` (child of scene, or parentless) |
+
+A `beat` may be parentless (a loose beat on the lane grid, §5.10) or a child of a scene; any other parent is rejected. Deleting a scene or chapter releases its beats that are placed on a lane or bridged to a turning point (they become parentless and stay on the grid); its other beats are deleted with it as before.
 
 Every novel has exactly one `style`/`book` card ("Book voice"), created automatically by a database trigger and protected from deletion (§15).
 
@@ -198,9 +200,11 @@ A directed, labelled connection between two cards. Labels are free text. Some la
 | `arc of` | arc → character | Arc ownership |
 | `between` | relationship → character (×2) | Relationship members |
 | `uses_style` | chapter or scene → style preset | The preset that styles it (§15) |
+| `because of` | beat or scene → backstory cause: a whole plot, a backstory scene, beat or turning point beat, or an event | "This happens because of X"; a line into the backstory region on the lane grid (§5.10) |
+| `touches` | beat → another lane's card | A ghost marker on that lane at the beat's column (§5.10) |
 | anything else | any → any | Generic link |
 
-`THREAD_LABELS = [opens, advances, resolves, explores]`, `CAST_LABELS = [POV, present, set in, features]`.
+`THREAD_LABELS = [opens, advances, resolves, explores]`, `CAST_LABELS = [POV, present, set in, features]`, `LANE_LINK_LABELS = [because of, touches]` (`src/lib/lanes.ts`). Lane membership is not a link; it lives in `beat_placements` (§3.1).
 
 Database constraints: a scene has at most one `POV` link and it must target a character; a chapter or scene has at most one `uses_style` link and it must target a `style`/`preset` card. A trigger rejects invalid `POV` and `uses_style` links.
 
@@ -352,7 +356,7 @@ Keep `fts` in sync with triggers or in the repository layer on every write to `c
 
 ### 3.1 Additions since v1.0
 
-`schema.sql` holds the tables above plus `llm_requests`. Everything else is added by idempotent migrations in `db/index.ts`, `db/subplot-schema.ts`, and `db/plot-migration.ts`, which run on every boot (`CREATE … IF NOT EXISTS`, and `ALTER TABLE … ADD COLUMN` only when the column is missing).
+`schema.sql` holds the tables above plus `llm_requests`. Everything else is added by idempotent migrations in `db/index.ts`, `db/subplot-schema.ts`, `db/plot-migration.ts`, and `db/lane-schema.ts`, which run on every boot (`CREATE … IF NOT EXISTS`, and `ALTER TABLE … ADD COLUMN` only when the column is missing).
 
 ```sql
 -- Provider call log, shown in Settings → LLM request log (last 200)
@@ -409,6 +413,26 @@ Subplot mode (§16) adds these tables:
 | `extractions` | Pending card extraction proposals from approved prose |
 | `subplot_proposals` | Pending AI proposals (premise, turning points, specs) |
 | `plot_sources`, `plot_aliases` | Map legacy `plot` cards to subplots and hide empty duplicate plots |
+
+The lane grid (§5.10) adds three tables in `db/lane-schema.ts` (`migrateLanes`, run on every boot after `migratePlots`):
+
+```sql
+CREATE TABLE lanes(id TEXT PRIMARY KEY, novel_id TEXT NOT NULL REFERENCES novels(id) ON DELETE CASCADE,
+  card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,   -- any card except chapter/scene/beat/style
+  position REAL NOT NULL, color TEXT NOT NULL DEFAULT '',          -- token name lane-1 … lane-8
+  collapsed INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, UNIQUE(novel_id, card_id));
+CREATE TABLE beat_placements(beat_id TEXT PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE, -- beat or event card
+  lane_id TEXT NOT NULL REFERENCES lanes(id) ON DELETE CASCADE,
+  slot REAL,                       -- story time; NULL = parked in the lane's tray; < 0 = backstory
+  time_label TEXT NOT NULL DEFAULT '');
+CREATE TABLE turning_point_beats(turning_point_id TEXT PRIMARY KEY REFERENCES turning_points(id) ON DELETE CASCADE,
+  beat_id TEXT NOT NULL UNIQUE REFERENCES cards(id) ON DELETE CASCADE);
+```
+
+- **Slots** are ordinal story time shared by every lane. Present slots are > 0, backstory slots < 0. Inserting between two columns takes the midpoint; when a gap falls below `1e-9` every distinct slot in that region is renumbered (1…N, or −N…−1) in one transaction, keeping equal slots equal.
+- **Scenes** have no stored slot. A scene's column is the shared slot of its placed beats; a beat joining a scene adopts it, and moving the scene moves every placed beat.
+- **Turning point bridge.** Placing a turning point creates its beat card (parentless; title = first sentence, body = the turning point text). Afterwards turning point text and beat body stay equal both ways: editing the beat returns the turning point to draft and adds review badges like `editTP`; editing the turning point snapshots and updates the beat.
+- **Versions.** Beat and event snapshots include their placement, so History → Restore also restores lane and slot. Lane deletion cascades placements; the beats return to the tray. Deleting a lane's card deletes the lane.
 
 On boot, any `subplot_requests` or `change_sets` left `running` are marked `interrupted` so the writer can retry them explicitly.
 
@@ -512,7 +536,7 @@ The shipped UI is one **workspace** (`Studio.svelte`): contents rail, editor, an
 
 1. **Novel switcher.** The novel title is a button with a ▾. It opens a menu listing all novels (current one italic, "open now"; others show their tagline), a divider, **+ New novel**, and **Edit novel** (title and tagline). Selecting a novel opens its Chapters section. The last-opened novel opens on app start.
 2. **New novel dialog.** Fields: Working title (default "Untitled novel"), Premise in a sentence (optional). **Create novel** creates the novel, its Book voice card, and, if a premise was given, a `premise` card.
-3. **Contents.** On a section view, the eight sections (§2.3) in order with counts (Chapters shows scene count, "6 sc") and coral pending badges for all cards in the section, including descendants.
+3. **Contents.** On a section view, the eight sections (§2.3) in order with counts (Chapters shows scene count, "6 sc") and coral pending badges for all cards in the section, including descendants. Below them, *Views* links to the **Lane grid** (§5.10), which is also the last entry of the **Book sections ▾** menu.
 4. **Card navigator.** With a card open, the rail switches to: a **Book sections ▾** menu, "← All <section>", a selector to switch between top-level cards of that section, and an **Overview** entry. For a chapter: **Chapter overview**, a **Find a scene…** filter, the numbered scene list with ↑/↓ reorder buttons and pending badges, **+ Add scene**, and **Read chapter**. For other cards: their children plus **Linked cards**, **History**, and (character and style cards) **Voice & style**. In subplot mode the rail hosts the subplot navigator (§16).
 5. **Continuity check** button: the count of pending `flag_issue` suggestions ("N issues to review" / "All clear"). Opens the Continuity view.
 6. **Footer links:** **Chat archive** (§17), **Export** (§18), **Settings** (§5.8), and **Light / dark**.
@@ -613,6 +637,22 @@ A full page with **← Back to Reefnote** (returns to the novel it was opened fr
 ### 5.9 Mobile
 
 At 960px and below: bottom tabs **Story / Write / Details**. Selecting a section or card switches to Write. Opening a Details tool switches to Details.
+
+### 5.10 Lane grid (`/n/:novelId/lanes`)
+
+Reached from **Lane grid** under *Views* in Contents and from the **Book sections ▾** menu. Behaviour for writers is in `docs/lane-view.md`.
+
+- **Rows are lanes** (ordered by `lanes.position`): any card except chapters, scenes, beats and styles. The header shows the card's title and type (click opens the card), a colour dot, ↑/↓, **Fold** and **Remove** (the card is kept). **+ Add lane** picks an existing card grouped by type, or creates a new card; a new plot is created through subplot mode so it has turning points.
+- **Columns are story-time slots.** A column label is the first free-text time label in it, else its ordinal. Thin gaps between columns accept drops and create a new column (midpoint). Left of a dashed **Chapter 1 starts** divider is the backstory region (slot < 0), compressed to one column with per-lane counts until **Expand backstory**.
+- **Beats** render as small index cards (turning points and backstory events are labelled). A scene whose placed beats share a column draws a bracket joining them; it is labelled **Collision** when they sit on two or more lanes, and "read in Ch N" once the scene is in a chapter. Dragging the bracket label moves the whole scene.
+- **Drag and drop.** Beat onto a column: that slot. Onto a gap: a new slot. Onto another lane: changes lane. Onto another beat: groups them into one scene (joining the target's scene if it has one, else a new chapterless scene) at the target's column. A beat in a scene dragged to a different column than its scene's other beats is taken out of the scene. Turning points drag from the tray the same way.
+- **Tray** (below the grid): per lane, parked beats (slot NULL) and the plot's unplaced turning points (virtual until placed); plus **No lane** for beats and backstory events without a placement. Dropping on a lane's tray parks a beat there; dropping on No lane removes the placement.
+- **Beat panel** (on select): title and *What happens* (save on blur, versioned), lane, column (including *New column at the end* and *New backstory column*), optional time label, scene (take out, or make a scene with another beat), **Because of** and **Touches** links, **Open card**, **Remove from lane**.
+- **Signals** (computed, nothing stored): cells in a run of more than N empty columns after a lane's first beat are hatched ("Quiet for N columns" when the run is trailing; N defaults to 4 and is set in the toolbar); a column with more than 3 beats is marked **Crowded**. Hovering a beat or a scene label draws dashed lines to its `because of` targets (a whole-plot target ends at that plot's lane); clicking a scene label opens a scene panel with its beats and `because of` links; a lane's tray offers **All into backstory** / **All at the end** to lay out its turning points; `touches` links show a ghost marker on the touched lane.
+- **Keyboard:** arrows move the selection between beats; Enter opens the selected card. Double-click also opens a card. Quick-add: **+** in an empty cell, **+ Beat** at the end of a lane, **+** in the backstory column (creates an `event`/`backstory` card).
+- **Phone (≤960px):** one lane at a time with a lane switcher, its beats in story-time order with the chapter divider, **+ Beat at the end**, and its tray. Moves happen in the beat panel.
+
+Every grid action is a direct user action: it applies immediately and is versioned. Nothing on the grid calls the AI.
 
 ---
 
@@ -725,6 +765,23 @@ POST   /api/style-library/:category/:slug/assist {action: improve|sample, body?}
 GET    /api/style-library/export               → reefnote-style-library.zip
 POST   /api/style-library/import?name=…&category=…&overwrite=1  (raw .md or .zip body, ≤5 MB)
 ```
+
+### Lane grid (§5.10)
+```
+GET    /api/novels/:id/grid            → {lanes, placements, beats, scenes, chapters, turningPoints (every plot's unplaced turning points, with plot_title, plot_card_id and lane_id when the plot is a lane), links (because of, touches), candidates}
+POST   /api/novels/:id/lanes {card_id | new_card:{type,title,body,subtype?}}   → lane (409 if the card is already a lane)
+PATCH  /api/lanes/:id {position?, direction?: -1|1, color?, collapsed?}
+DELETE /api/lanes/:id                  → placements cascade; beats return to the tray
+POST   /api/lanes/:id/layout {region: backstory|present, plot_card_id?} → unplaced turning points (story order) then tray beats, one new column each at the end of that region; with plot_card_id, that plot's unplaced turning points onto this lane
+PUT    /api/beats/:id/placement {lane_id, slot | null | between:[left|null,right|null], region?: backstory|present, time_label?, baseRev?}
+                                          → grid; :id may be a turning point id (creates its bridge beat)
+DELETE /api/beats/:id/placement {baseRev?}
+POST   /api/novels/:id/beats {title, body?, type?: beat|event, subtype?, lane_id?, slot? | between?, region?, scene_id?, time_label?}  → {card, grid}
+POST   /api/scenes/group {beat_ids[], title?}  → {scene, grid}
+POST   /api/scenes/:id/ungroup {beat_id}       → grid (the beat keeps its placement; the scene is kept)
+POST   /api/scenes/:id/move {slot | between, region?}  → grid (every placed beat of the scene moves)
+```
+`handleLanes` (`src/lib/server/lanes/api.ts`) runs after the subplot handler in the catch-all route. A stale `baseRev` returns 409.
 
 ### Subplot mode (§16)
 ```
@@ -985,7 +1042,7 @@ Rules enforced in code, not trusted to the model:
 - **Verbatim text.** For any `text_ref`, the server copies the referenced section's text exactly (minus its heading line). Pass 2 never supplies card body text. The only free text pass 2 writes is `what`, `why`, and short `fix.text` for flags.
 - **Sub-anchors.** For multi-field cards, pass 1 is instructed to use bolded lead-ins (e.g. "**The corner.** …"); the server splits a section by those lead-ins so `S2#corner` resolves to that paragraph. Chapter hooks use `## Opens on` / `## Closes on` headings and map directly.
 - **Subtype from text.** If a section's first line is `Type: X`, the server strips that line and uses `X` as subtype when pass 2 omitted it.
-- **Reference validation.** Every `card_id`, `to_id`, `from_id`, `parent_id` must exist in the novel (or be `@scope`). Unknown ids → drop that suggestion. Type must be valid; `scene` parents must be chapters; `beat` parents must be scenes.
+- **Reference validation.** Every `card_id`, `to_id`, `from_id`, `parent_id` must exist in the novel (or be `@scope`). Unknown ids → drop that suggestion. Type must be valid; `scene` parents must be chapters; a `beat` may be parentless, but a beat with a parent needs a scene.
 - **Flow permissions.** Drop actions not allowed for the flow (§8.2).
 - **Deduplication.** Drop `add_link` if the link exists or a pending identical suggestion exists. Drop `create_card` whose title exactly matches an existing card of the same type (instead, if pass 2 marked it, convert to `update_card` append on that card).
 - **Rejection filter.** Compute fingerprints (§8.7); drop anything previously rejected.

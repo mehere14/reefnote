@@ -1,5 +1,6 @@
 import {migratePlots} from './plot-migration';
 import { migrateSubplots } from './subplot-schema';
+import { migrateLanes } from './lane-schema';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import schemaSql from './schema.sql?raw';
@@ -86,6 +87,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS pinned_messages (
 );`);
 migrateSubplots(db);
 migratePlots(db);
+migrateLanes(db);
 export const dataDirectory = path === ':memory:' ? resolve(process.env.DATA_DIR || 'data') : dirname(resolve(path));
 if(!(db.prepare('PRAGMA table_info(messages)').all() as Array<{name:string}>).some(x=>x.name==='attachments'))db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'");
 export default db;

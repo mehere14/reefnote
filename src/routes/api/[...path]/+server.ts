@@ -1,5 +1,6 @@
 import {migratePlots} from '$lib/server/db/plot-migration';
 import { handleSubplots } from '$lib/server/subplots/api';
+import { handleLanes } from '$lib/server/lanes/api';
 import type { RequestHandler } from './$types';
 import db from '$lib/server/db';
 import {handleStyle} from '$lib/server/style/api';
@@ -11,6 +12,7 @@ import { ZodError } from 'zod';
 const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
 const handler:RequestHandler=async(event)=>{try{const {request,url}=event;const parts=(event.params.path||'').split('/');const [kind,id,action]=parts;const method=request.method;const body=async()=>{try{const value=await request.json();if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Expected object');return value;}catch{throw new CoreError(400,'Invalid JSON request');}};
 const subplotResponse=await handleSubplots(event);if(subplotResponse)return subplotResponse;
+const laneResponse=await handleLanes(event);if(laneResponse)return laneResponse;
 const styleResponse=await handleStyle(event);if(styleResponse)return styleResponse;
 if(kind==='novels'){
  if(!id&&method==='GET')return json(db.prepare('SELECT * FROM novels ORDER BY COALESCE(last_opened_at,updated_at) DESC').all());

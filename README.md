@@ -11,6 +11,7 @@ The co-writer only **proposes** changes. Every suggestion is reviewed, and can b
 - **Story cards.** Premise, outline, characters, character arcs, world and rules, grand plot and subplots, and chapters, all cross-linked with aliases and "appears in" tracking.
 - **Chapter, scene, and beat workspace.** Plan and Prose tabs per scene, reordering, scene splitting, a reader view, and full edit history with restore.
 - **Plot-first development.** [Subplot mode](docs/subplot-mode.md) lets you develop a plot from premise to turning points to scenes, with rolling summaries, card extraction proposals, ripple checks, and atomic rollback.
+- **Lane grid.** The [lane grid](docs/lane-view.md) shows every thread you follow (plots, characters, groups, questions) as a row across story time. Place beats and turning points, drag them between columns and lanes, group beats from different lanes into one collision scene, and keep backstory to the left of chapter 1.
 - **Voice and style.** A protected book voice for every novel, scene presets, character dialogue and interior voices, and a built-in [style library](src/lib/style-library/) you can extend, import, and export.
 - **Optional AI co-writer.** Brainstorming, scene and dialogue drafting, continuity checks, and chat scoped to any card. A two-pass writing and structuring flow with a reviewable diff. Every response logs the exact context it was sent.
 - **Bring your own provider.** OpenAI, Anthropic, Google, OpenRouter, or a local [Ollama](https://ollama.com) model. Any OpenAI-compatible endpoint works through a custom base URL. API keys are encrypted at rest.
@@ -104,6 +105,7 @@ src/
     db/                SQLite schema and migrations
     ai/                providers, prompts, context assembly, two-pass flows
     subplots/          plot-first generation, indexing, review, rollback
+    lanes/             lane grid: lanes, beat placement, scene grouping, turning point bridge
     style/             style library and resolution
     security/          password sessions
   lib/style-library/   built-in voice, character, and scene presets (Markdown)
