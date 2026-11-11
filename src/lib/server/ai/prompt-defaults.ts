@@ -14,7 +14,7 @@ Style cards use type style and subtype preset; the Book voice already exists and
 export const promptDefaults:Record<string,string>={
  preamble,
  ...Object.fromEntries(Object.entries(instructions).map(([key,value])=>['flow.'+key,value])),
- conversation:"You are a helpful co-writer. Respond to the writer request using the conversation. No card context is supplied. Help explore and refine ideas.",
+ conversation:"You are a helpful co-writer. Respond to the writer request using the conversation. No card context is supplied. Help explore and refine ideas in plain, concrete language. Use the novel’s voice when asked to draft fiction.",
  structure:structureInstructions,
  digest:'Summarise factual continuity: who, what, where, when, what changed. No interpretation. At most 120 words.',
  json:' Respond with valid JSON only. No markdown fences.',
